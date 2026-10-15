@@ -46,28 +46,15 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 24px;
-    margin-bottom: 20px;
+    gap: 32px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
   }
 
-  .logo-placeholder {
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--muted);
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    padding: 0 16px;
-    background: #fff;
-  }
-  
-  /* Si decides usar imágenes reales, puedes reemplazar los placeholders por etiquetas <img> con esta clase */
   .logo-img {
-    height: 55px;
+    height: 65px;
     object-fit: contain;
+    max-width: 220px;
   }
 
   header h1 {
@@ -165,11 +152,10 @@
 
 <div class="container">
   <header>
-    <!-- Contenedor de Logotipos (UASLP y VariClim) -->
+    <!-- Contenedor de Logotipos Oficiales -->
     <div class="logos-container">
-      <!-- Reemplaza el texto o div por <img src="ruta_logo_uaslp.png" class="logo-img" alt="UASLP"> cuando tengas tus imágenes -->
-      <div class="logo-placeholder">https://github.com/variclim/imagenes_plat/blob/main/UASLP_logo.png?raw=true</div>
-      <div class="logo-placeholder">https://github.com/variclim/imagenes_plat/blob/main/Logo_variclim_2024.png?raw=true</div>
+      <img src="https://github.com/variclim/imagenes_plat/blob/main/UASLP_logo.png?raw=true" class="logo-img" alt="Logo UASLP">
+      <img src="https://github.com/variclim/imagenes_plat/blob/main/Logo_variclim_2024.png?raw=true" class="logo-img" alt="Logo VariClim">
     </div>
     <h1>Plataforma de Análisis Climático</h1>
     <p>Herramientas geoespaciales y meteorológicas desarrolladas para la gestión e investigación ambiental.</p>
