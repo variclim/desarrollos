@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SPI / SPEI - Estaciones CONAGUA</title>
+
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --border:#dfe3e8;
+    --primary:#1565c0; --text:#1c1f23; --muted:#5a6472;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:20px;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{background:linear-gradient(135deg,#0d47a1,#1976d2);color:#fff;padding:20px 26px;border-radius:14px;margin-bottom:16px}
+  header h1{margin:0 0 6px;font-size:20px}
+  header p{margin:0;opacity:.9;font-size:13px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{padding:9px 16px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:14px}
+  .tab.active{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:14px}
+  .card h2{margin:0 0 12px;font-size:16px;color:var(--primary)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .stat{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .stat label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .stat span{font-size:14px;font-weight:600}
+  .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px}
+  select,button,input[type=file]{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer}
+  button.primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+  button.primary:hover{background:#0d47a1}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 9px;border-bottom:1px solid var(--border);text-align:left}
+  th{background:#f1f5f9;font-weight:600;color:var(--muted)}
+  .hidden{display:none !important}
+  #map{height:340px;min-height:340px;border-radius:10px;background:#e8eef3}
+  #mapHeat{height:600px;min-height:600px;border-radius:10px;background:#e8eef3}
+  .legend-inline{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .legend-inline i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .badge{display:inline-block;background:#e3f2fd;color:#0d47a1;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .badge.error{background:#ffebee;color:#c62828}
+  .badge.warn{background:#fff8e1;color:#ef6c00}
+  #status{font-size:13px;color:var(--muted);margin-top:8px}
+  #progress{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin-top:8px;display:none}
+  #progressBar{height:100%;background:var(--primary);width:0;transition:.2s}
+  #stationList{max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px}
+  #stationList tr{cursor:pointer}
+  #stationList tr:hover{background:#e3f2fd}
+  #stationList tr.selected{background:#bbdefb;font-weight:600}
+  #logPanel{background:#1c1f23;color:#a5d6a7;font-family:Consolas,monospace;font-size:11px;padding:10px;border-radius:8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;margin-top:10px}
+  .flex2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:900px){.flex2{grid-template-columns:1fr}}
+  .alert{background:#fff8e1;border-left:4px solid #ef6c00;color:#5d4037;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:10px}
+  .alert.info{background:#e3f2fd;border-color:#1976d2;color:#0d47a1}
+  .alert strong{font-weight:600}
+  .leyenda-mapa{
+    background:rgba(255,255,255,.9);padding:6px 10px;border-radius:6px;
+    font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,.3);line-height:1.5;
+  }
+  .leyenda-mapa b{display:block;margin-bottom:4px;font-size:12px}
+  .leyenda-mapa .fila{display:flex;align-items:center;gap:6px}
+  .leyenda-mapa i{width:14px;height:10px;border-radius:2px;display:inline-block}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SPI / SPEI · Estaciones CONAGUA</h1>
+  <p>Índice Estandarizado de Precipitación (SPI) y de Precipitación–Evapotranspiración (SPEI) · Metodología OMM-Nº 1090</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="estacion">📍 Estación individual</div>
+  <div class="tab" data-tab="heat">🗺️ Mapa de calor</div>
+</div>
+
+<!-- ==================== TAB ESTACIÓN ==================== -->
+<div id="tab-estacion">
+
+  <section class="card">
+    <h2>1. Cargar datos</h2>
+    <div class="controls">
+      <label>📁 Carpeta con CSV CONAGUA:
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
+      </label>
+      <label>📋 Catálogo (opcional):
+        <input type="file" id="catalogInput" accept=".csv">
+      </label>
+      <button class="primary" id="btnCargarDemo">🎯 Cargar demo</button>
+      <button id="btnClear">🗑 Limpiar</button>
+    </div>
+    <div id="status">Esperando archivos…</div>
+    <div id="progress"><div id="progressBar"></div></div>
+    <div id="logPanel" class="hidden"></div>
+  </section>
+
+  <section class="card hidden" id="stationListCard">
+    <h2>2. Estaciones procesadas (clic para ver)</h2>
+    <div id="stationList"></div>
+  </section>
+
+  <section class="card hidden" id="infoCard">
+    <h2>3. Información y ubicación</h2>
+    <div class="flex2">
+      <div><div id="infoGrid" class="grid"></div></div>
+      <div>
+        <div id="map"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">
+          <label>Mapa base:
+            <select id="baseLayerSelect" style="font-size:11px;padding:3px 6px">
+              <option value="googleHybrid" selected>Google Híbrido</option>
+              <option value="esriSat">Esri Satélite</option>
+              <option value="osm">OpenStreetMap</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="statsCard">
+    <h2>4. Estadísticas</h2>
+    <div id="statsGrid" class="grid"></div>
+  </section>
+
+  <section class="card hidden" id="etpAlert"></section>
+
+  <section class="card hidden" id="ppCard">
+    <h2>5. Precipitación mensual</h2>
+    <div id="plotPP" style="width:100%;height:280px"></div>
+  </section>
+
+  <section class="card hidden" id="spiCard">
+    <h2>6. SPI / SPEI</h2>
+    <div class="controls">
+      <label>Índice:
+        <select id="indexSelect">
+          <option value="spi" selected>SPI (Precipitación)</option>
+          <option value="spei">SPEI (P − ETP)</option>
+        </select>
+      </label>
+      <label>Escala:
+        <select id="escalaSelect">
+          <option value="1">1 mes</option>
+          <option value="3" selected>3 meses</option>
+          <option value="6">6 meses</option>
+          <option value="12">12 meses</option>
+          <option value="24">24 meses</option>
+        </select>
+      </label>
+      <button class="primary" id="btnDescargar">⬇ Descargar CSV</button>
+    </div>
+    <div id="plotSPI" style="width:100%;height:380px"></div>
+    <div class="legend-inline">
+      <span><i style="background:#d73027"></i>Extrem. seco (≤ -2)</span>
+      <span><i style="background:#fc8d59"></i>Sev. seco (-2 a -1.5)</span>
+      <span><i style="background:#fee08b"></i>Mod. seco (-1.5 a -1)</span>
+      <span><i style="background:#d9ef8b"></i>Normal</span>
+      <span><i style="background:#91cf60"></i>Mod. húmedo (1 a 1.5)</span>
+      <span><i style="background:#1a9850"></i>Muy húmedo (1.5 a 2)</span>
+      <span><i style="background:#006837"></i>Extrem. húmedo (≥ 2)</span>
+    </div>
+  </section>
+
+  <section class="card hidden" id="catCard">
+    <h2>7. Distribución de categorías</h2>
+    <div id="catTitle" style="font-size:13px;color:var(--muted);margin-bottom:8px"></div>
+    <table id="catTable">
+      <thead><tr><th>Categoría</th><th>Meses</th><th>Porcentaje</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card hidden" id="heatCard">
+    <h2>8. Comparación de escalas</h2>
+    <div id="plotHeat" style="width:100%;height:320px"></div>
+  </section>
+
+</div>
+
+<!-- ==================== TAB MAPA DE CALOR ==================== -->
+<div id="tab-heat" class="hidden">
+  <section class="card">
+    <h2>Mapa de calor nacional</h2>
+    <div class="controls">
+      <label>Índice:
+        <select id="heatIndex">
+          <option value="spi" selected>SPI</option>
+          <option value="spei">SPEI</option>
+        </select>
+      </label>
+      <label>Escala:
+        <select id="heatEscala">
+          <option value="1">1 mes</option>
+          <option value="3" selected>3 meses</option>
+          <option value="6">6 meses</option>
+          <option value="12">12 meses</option>
+          <option value="24">24 meses</option>
+        </select>
+      </label>
+      <label>Fecha:
+        <select id="heatFecha"></select>
+      </label>
+      <button class="primary" id="btnRenderHeat">🔄 Actualizar mapa</button>
+      <label><input type="checkbox" id="toggleHeat" checked> Heatmap</label>
+      <label><input type="checkbox" id="toggleMarkers" checked> Puntos</label>
+      <label>Mapa base:
+        <select id="baseLayerSelectHeat" style="font-size:12px">
+          <option value="googleHybrid" selected>Google Híbrido</option>
+          <option value="esriSat">Esri Satélite</option>
+          <option value="osm">OpenStreetMap</option>
+        </select>
+      </label>
+    </div>
+    <div id="mapHeat"></div>
+    <div class="legend-inline">
+      <span><i style="background:#a50026"></i>≤ -2 Extrem. seco</span>
+      <span><i style="background:#d73027"></i>-2 a -1.5</span>
+      <span><i style="background:#fc8d59"></i>-1.5 a -1</span>
+      <span><i style="background:#ffffbf"></i>-1 a 1 Normal</span>
+      <span><i style="background:#91cf60"></i>1 a 1.5</span>
+      <span><i style="background:#1a9850"></i>1.5 a 2</span>
+      <span><i style="background:#006837"></i>≥ 2 Extrem. húmedo</span>
+    </div>
+  </section>
+</div>
+
+<script>
+// =====================================================================
+// ESTADO GLOBAL
+// =====================================================================
+const ESCALAS = [1, 3, 6, 12, 24];
+let catalogo = {};
+let estaciones = {};
+let claveActual = null;
+let map = null, mapHeat = null;
+let heatLayer = null, markerLayerGroup = null;
+let baseLayers = {};
+let estacionMarkers = {}; // Para guardar los marcadores del mapa de estaciones
+
+// =====================================================================
+// DECODIFICACIÓN DE ARCHIVOS (Latin-1 / UTF-8)
+// =====================================================================
+async function leerArchivoTexto(file){
+  const buffer = await file.arrayBuffer();
+  // Intentar UTF-8 primero
+  let texto = new TextDecoder('utf-8', {fatal:false}).decode(buffer);
+  // Si hay muchos caracteres de reemplazo, usar Latin-1
+  const reemplazos = (texto.match(/\uFFFD/g) || []).length;
+  if (reemplazos > 0){
+    texto = new TextDecoder('iso-8859-1').decode(buffer);
+  }
+  return texto;
+}
+
+// =====================================================================
+// CAPAS BASE
+// =====================================================================
+function getBaseLayer(key){
+  if (key === 'googleHybrid'){
+    return L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'],
+      attribution: '© Google'
+    });
+  }
+  if (key === 'esriSat'){
+    return L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Tiles © Esri'
+    });
+  }
+  return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  });
+}
+
+// =====================================================================
+// LOG
+// =====================================================================
+function log(msg){
+  const p = document.getElementById('logPanel');
+  p.classList.remove('hidden');
+  p.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  p.scrollTop = p.scrollHeight;
+  console.log(msg);
+}
+
+// =====================================================================
+// TABS
+// =====================================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('[id^=tab-]').forEach(x => x.classList.add('hidden'));
+    t.classList.add('active');
+    document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
+    setTimeout(() => {
+      if (t.dataset.tab === 'heat' && mapHeat) mapHeat.invalidateSize();
+      if (t.dataset.tab === 'estacion' && map) map.invalidateSize();
+    }, 250);
+  });
+});
+
+// =====================================================================
+// CATÁLOGO
+// =====================================================================
+document.getElementById('catalogInput').addEventListener('change', async e => {
+  if (!e.target.files.length) return;
+  try {
+    const texto = await leerArchivoTexto(e.target.files[0]);
+    parsearCatalogo(texto);
+    document.getElementById('status').textContent =
+      `✔ Catálogo: ${Object.keys(catalogo).length} estaciones.`;
+    log(`Catálogo cargado: ${Object.keys(catalogo).length} estaciones`);
+  } catch (err){ log('Error catálogo: ' + err.message); }
+});
+
+function parsearCatalogo(texto){
+  const lineas = texto.split(/\r?\n/).filter(l => l.trim());
+  if (!lineas.length) return;
+  const headers = parseCSVLine(lineas[0]).map(h => h.trim());
+  const idx = {
+    clave: headers.findIndex(h => /^Clave/i.test(h)),
+    nombre: headers.findIndex(h => /Nombre de la estación/i.test(h)),
+    lat: headers.findIndex(h => /^Latitud/i.test(h)),
+    lon: headers.findIndex(h => /^Longitud/i.test(h)),
+    alt: headers.findIndex(h => /^Altitud/i.test(h)),
+    estado: headers.findIndex(h => /^Estado/i.test(h)),
+    municipio: headers.findIndex(h => /^Municipio/i.test(h)),
+    cuenca: headers.findIndex(h => /Cuenca de disponibilidad/i.test(h)),
+    region: headers.findIndex(h => /Región hidrológica/i.test(h)),
+    idCuenca: headers.findIndex(h => /Identificador de la/i.test(h)),
+    numRegion: headers.findIndex(h => /Número de la/i.test(h))
+  };
+  catalogo = {};
+  for (let i = 1; i < lineas.length; i++){
+    const cols = parseCSVLine(lineas[i]);
+    const clave = (cols[idx.clave] || '').trim();
+    if (!clave) continue;
+    catalogo[clave] = {
+      nombre: (cols[idx.nombre] || '').trim(),
+      lat: parseFloat(cols[idx.lat]),
+      lon: parseFloat(cols[idx.lon]),
+      alt: parseFloat(cols[idx.alt]),
+      estado: (cols[idx.estado] || '').trim(),
+      municipio: (cols[idx.municipio] || '').trim(),
+      cuenca: (cols[idx.cuenca] || '').trim(),
+      region: (cols[idx.region] || '').trim(),
+      idCuenca: (cols[idx.idCuenca] || '').trim(),
+      numRegion: (cols[idx.numRegion] || '').trim()
+    };
+  }
+}
+
+function parseCSVLine(line){
+  const out = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++){
+    const c = line[i];
+    if (c === '"') inQ = !inQ;
+    else if (c === ',' && !inQ){ out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// =====================================================================
+// CARGA CARPETA
+// =====================================================================
+document.getElementById('folderInput').addEventListener('change', async e => {
+  const files = Array.from(e.target.files || []).filter(f => f.name.toLowerCase().endsWith('.csv'));
+  if (!files.length){ alert('Sin CSV.'); return; }
+  log(`Carpeta: ${files.length} archivos`);
+  await procesarLote(files);
+});
+
+async function procesarLote(files){
+  const prog = document.getElementById('progress');
+  const bar = document.getElementById('progressBar');
+  prog.style.display = 'block';
+
+  estaciones = {};
+  let ok = 0, err = 0;
+
+  for (let i = 0; i < files.length; i++){
+    bar.style.width = ((i+1)/files.length*100) + '%';
+    try {
+      const texto = await leerArchivoTexto(files[i]);
+      const r = procesarArchivo(texto, files[i].name);
+      if (r){ estaciones[r.clave] = r.datos; ok++; }
+      else { err++; log(`✖ ${files[i].name}: sin datos válidos`); }
+    } catch (ex){
+      err++; log(`✖ ${files[i].name}: ${ex.message}`);
+    }
+    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+
+  document.getElementById('status').innerHTML =
+    `<span class="badge">✔</span> ${ok} estaciones · <span class="badge error">${err} errores</span>`;
+
+  setTimeout(() => { prog.style.display = 'none'; bar.style.width = '0'; }, 800);
+
+  if (!Object.keys(estaciones).length){ alert('Nada procesado.'); return; }
+  renderStationList();
+  renderHeatFechaOptions();
+  seleccionarEstacion(Object.keys(estaciones).sort()[0]);
+}
+
+// =====================================================================
+// PROCESAR ARCHIVO
+// =====================================================================
+function procesarArchivo(texto, nombreArchivo){
+  const lineas = texto.split(/\r?\n/);
+  const info = {};
+  for (let i = 0; i < 7 && i < lineas.length; i++){
+    const l = lineas[i].trim();
+    if (!l) continue;
+    const p = l.split(',');
+    info[p[0].trim()] = p.slice(1).join(',').trim();
+  }
+  const headers = (lineas[7] || '').split(',').map(h => h.trim());
+  const iFecha = headers.findIndex(h => /fecha/i.test(h));
+  const iPP    = headers.findIndex(h => /precip/i.test(h));
+  const iEVP   = headers.findIndex(h => /evapor/i.test(h));
+  const iTmed  = headers.findIndex(h => /temperatura media/i.test(h));
+  if (iFecha < 0 || iPP < 0) throw new Error('Sin columna Fecha o PP');
+
+  const datos = [];
+  for (let i = 8; i < lineas.length; i++){
+    const l = lineas[i].trim();
+    if (!l) continue;
+    const cols = l.split(',');
+    if (cols.length <= Math.max(iFecha, iPP)) continue;
+    const f = cols[iFecha].trim();
+    if (!f || !/^\d{4}/.test(f)) continue;
+    const partes = f.replace(/\//g,'-').split('-').map(Number);
+    if (partes.length < 3) continue;
+    const fecha = new Date(partes[0], partes[1]-1, partes[2]);
+    if (isNaN(fecha.getTime())) continue;
+    let pp = parseFloat(cols[iPP]);
+    let evp = iEVP >= 0 ? parseFloat(cols[iEVP]) : NaN;
+    let tmed = iTmed >= 0 ? parseFloat(cols[iTmed]) : NaN;
+    if (isNaN(pp) || pp < 0) pp = null;
+    if (isNaN(evp) || evp < 0) evp = null;
+    if (isNaN(tmed)) tmed = null;
+    datos.push({fecha, pp, evp, tmed});
+  }
+  if (datos.length < 100) throw new Error('Solo ' + datos.length + ' días');
+  datos.sort((a,b) => a.fecha - b.fecha);
+
+  const clave = (info['Clave:'] || nombreArchivo.replace(/\.csv$/i,'')).trim();
+
+  const lat = (catalogo[clave] && !isNaN(catalogo[clave].lat)) ? catalogo[clave].lat : 23.6;
+  const {serie} = construirSerieMensual(datos, lat);
+
+  // Determinar la fuente ETP real a partir de los orígenes de la serie
+  const origenes = new Set(serie.map(d => d.origen).filter(Boolean));
+  const fuenteETP = origenes.has('evap') ? 'evap'
+                   : (origenes.has('hargreaves') ? 'hargreaves'
+                   : (origenes.has('hargreaves_clim') ? 'hargreaves_clim' : 'ninguna'));
+
+  // SPI y SPEI
+  const spi = {}, spei = {};
+  ESCALAS.forEach(e => {
+    try { spi[e]  = calcularIndice(serie, e, 'pp'); }
+    catch(ex){ spi[e] = new Array(serie.length).fill(null); }
+    try { spei[e] = calcularIndice(serie, e, 'balance'); }
+    catch(ex){ spei[e] = new Array(serie.length).fill(null); }
+  });
+
+  return {clave, datos: {info, clave, serie, spi, spei, nDatos: datos.length, fuenteETP}};
+}
+
+// =====================================================================
+// SERIE MENSUAL + CÁLCULO DE ETP
+// =====================================================================
+function radiacionExtraterrestre(lat, diaJuliano){
+  const phi = lat * Math.PI / 180;
+  const dr = 1 + 0.033 * Math.cos(2*Math.PI*diaJuliano/365);
+  const delta = 0.409 * Math.sin(2*Math.PI*diaJuliano/365 - 1.39);
+  const ws = Math.acos(-Math.tan(phi) * Math.tan(delta));
+  const Ra = (24*60/Math.PI) * 0.0820 * dr * (ws * Math.sin(phi) * Math.sin(delta)
+            + Math.cos(phi) * Math.cos(delta) * Math.sin(ws));
+  return Ra;
+}
+
+function construirSerieMensual(datos, lat){
+  const meses = new Map();
+  datos.forEach(({fecha, pp, evp, tmed}) => {
+    const y = fecha.getFullYear(), m = fecha.getMonth()+1;
+    const key = `${y}-${m}`;
+    if (!meses.has(key)) meses.set(key, {sumPP:0, sumEVP:0, nPP:0, nEVP:0, sumT:0, nT:0, y, m});
+    const r = meses.get(key);
+    if (pp !== null){ r.sumPP += pp; r.nPP++; }
+    if (evp !== null){ r.sumEVP += evp; r.nEVP++; }
+    if (tmed !== null){ r.sumT += tmed; r.nT++; }
+  });
+
+  const arr = [];
+  let conEvap = 0, conHargreaves = 0;
+
+  for (const {y, m, sumPP, sumEVP, nPP, nEVP, sumT, nT} of meses.values()){
+    const ppMes  = nPP >= 25 ? sumPP : null;
+    const tMedia = nT >= 25 ? sumT / nT : null;
+
+    // ETP mensual: prioridad a la evaporación medida, luego Hargreaves con T,
+    // y si no hay T, Hargreaves con temperatura climatológica estimada por latitud.
+    let etpMes = null;
+    let origen = null;
+
+    if (nEVP >= 25 && sumEVP > 0){
+      // La evaporación de tanque se convierte a ETP de referencia multiplicando por 0.7
+      etpMes = sumEVP * 0.7;
+      origen = 'evap';
+      conEvap++;
+    } else {
+      // Temperatura: la medida si hay suficientes días, si no una estimación
+      // climatológica basada en la latitud (aproximación sinusoidal anual).
+      let tUsada = tMedia;
+      if (tUsada === null){
+        // T media anual aproximada según latitud (grados N).
+        // México: ~26 °C a 15°N, ~20 °C a 25°N, ~14 °C a 32°N.
+        const tAnual = Math.max(8, 30 - Math.abs(lat) * 0.55);
+        // Amplitud estacional ~ 6 °C en el norte, ~3 °C en el sur.
+        const amplitud = 3 + Math.abs(lat) * 0.12;
+        // Máximo térmico en julio (mes 7) en el hemisferio norte.
+        tUsada = tAnual + amplitud * Math.sin((m - 4) * Math.PI / 6);
+      }
+      const diaJuliano = 15 + (m-1)*30;
+      const Ra_MJ = radiacionExtraterrestre(lat, diaJuliano);
+      const Ra_mm = Ra_MJ / 2.45;
+      const deltaT = 14;
+      const etpDia = 0.0023 * Ra_mm * (tUsada + 17.8) * Math.sqrt(deltaT);
+      const diasMes = new Date(y, m, 0).getDate();
+      etpMes = Math.max(0, etpDia * diasMes);
+      origen = tMedia !== null ? 'hargreaves' : 'hargreaves_clim';
+      conHargreaves++;
+    }
+
+    const balance = (ppMes !== null && etpMes !== null) ? (ppMes - etpMes) : null;
+
+    arr.push({
+      fecha: new Date(y, m-1, 1),
+      pp: ppMes, evp: etpMes, balance, origen
+    });
+  }
+  arr.sort((a,b) => a.fecha - b.fecha);
+  return {serie: arr};
+}
+
+// =====================================================================
+// CÁLCULO DE ÍNDICE (SPI/SPEI)
+// =====================================================================
+function calcularIndice(serie, escala, campo){
+  const n = serie.length;
+  const acum = new Array(n).fill(null);
+  for (let i = escala-1; i < n; i++){
+    let ok = true, suma = 0;
+    for (let j = i-escala+1; j <= i; j++){
+      const v = serie[j][campo];
+      if (v === null || v === undefined){ ok = false; break; }
+      suma += v;
+    }
+    if (ok) acum[i] = suma;
+  }
+
+  const porMes = Array.from({length:12}, () => []);
+  for (let i = 0; i < n; i++){
+    if (acum[i] === null) continue;
+    porMes[serie[i].fecha.getMonth()].push({i, v: acum[i]});
+  }
+
+  const resultado = new Array(n).fill(null);
+
+  for (let m = 0; m < 12; m++){
+    const grupo = porMes[m];
+    if (grupo.length < 10) continue;
+    const valores = grupo.map(g => g.v);
+
+    if (campo === 'pp'){
+      const ceros = valores.filter(v => v === 0).length;
+      const q = ceros / valores.length;
+      const positivos = valores.filter(v => v > 0);
+      if (positivos.length < 5) continue;
+      const {shape, scale} = ajustarGamma(positivos);
+      if (!shape || !scale) continue;
+      grupo.forEach(({i, v}) => {
+        let cdf = v === 0 ? q : q + (1-q) * gammaCDF(v, shape, scale);
+        cdf = Math.min(Math.max(cdf, 1e-6), 1-1e-6);
+        resultado[i] = invNorm(cdf);
+      });
+    } else {
+      const {alpha, beta, gamma} = ajustarLogLogistica(valores);
+      if (!alpha || beta === null || gamma === null) continue;
+      grupo.forEach(({i, v}) => {
+        let cdf = cdfLogLogistica(v, alpha, beta, gamma);
+        cdf = Math.min(Math.max(cdf, 1e-6), 1-1e-6);
+        resultado[i] = invNorm(cdf);
+      });
+    }
+  }
+  return resultado;
+}
+
+// --- Log-Logística de 3 parámetros por L-momentos ---
+function ajustarLogLogistica(x){
+  const n = x.length;
+  if (n < 10) return {alpha:null, beta:null, gamma:null};
+
+  const sorted = [...x].sort((a,b)=>a-b);
+  const b0 = sorted.reduce((a,v) => a + v, 0) / n;
+  let b1 = 0, b2 = 0;
+  for (let i = 0; i < n; i++){
+    b1 += sorted[i] * i / (n - 1);
+    b2 += sorted[i] * i * (i - 1) / ((n - 1) * (n - 2));
+  }
+  b1 /= n;
+  b2 /= n;
+
+  const l1 = b0;
+  const l2 = 2*b1 - b0;
+  const l3 = 6*b2 - 6*b1 + b0;
+
+  if (l2 <= 0) return {alpha:null, beta:null, gamma:null};
+
+  const t3 = l3 / l2;
+  let k = -t3;
+  k = Math.max(Math.min(k, 0.95), -0.95);
+
+  const alpha = (l2 * Math.sin(Math.PI * k)) / (Math.PI * k);
+  const xi    = l1 - alpha * (1 / (1 + k) - 1);
+  return {alpha, beta: k, gamma: xi};
+}
+
+function cdfLogLogistica(x, alpha, beta, gamma){
+  const k = beta;
+  if (x <= gamma + 1e-9) return 1e-3;
+  const z = (x - gamma) / alpha;
+  if (z <= 0) return 1e-3;
+  try {
+    const base = 1 - k * z;
+    if (base <= 0) return 0.999;
+    const logF = -Math.log(1 + Math.exp(-Math.log(base) / k));
+    return Math.exp(logF);
+  } catch { return 0.5; }
+}
+
+// --- Gamma MLE ---
+function ajustarGamma(x){
+  const n = x.length;
+  const media = x.reduce((a,b)=>a+b,0)/n;
+  if (media <= 0) return {shape:null, scale:null};
+  const logMedia = x.reduce((a,b)=>a+Math.log(b),0)/n;
+  const s = Math.log(media) - logMedia;
+  if (s <= 0 || !isFinite(s)) return {shape:null, scale:null};
+  let alpha = (3 - s + Math.sqrt((s-3)*(s-3) + 24*s)) / (12*s);
+  for (let it = 0; it < 100; it++){
+    const psi = digamma(alpha), psi1 = trigamma(alpha);
+    const f = Math.log(alpha) - psi - s;
+    const fp = 1/alpha - psi1;
+    const d = f / fp;
+    alpha -= d;
+    if (alpha <= 0) alpha = 1e-3;
+    if (Math.abs(d) < 1e-7) break;
+  }
+  return {shape: alpha, scale: media/alpha};
+}
+
+function digamma(x){
+  let r = 0;
+  while (x < 6){ r -= 1/x; x += 1; }
+  const inv = 1/x, inv2 = inv*inv;
+  return r + Math.log(x) - 0.5*inv - inv2*(1/12 - inv2*(1/120 - inv2*(1/252)));
+}
+function trigamma(x){
+  let r = 0;
+  while (x < 6){ r += 1/(x*x); x += 1; }
+  const inv = 1/x, inv2 = inv*inv;
+  return r + inv + 0.5*inv2 + inv2*inv*(1/6 - inv2*(1/30 - inv2*(1/42)));
+}
+function gammaCDF(x, shape, scale){
+  if (x <= 0) return 0;
+  return lowerIncompleteGamma(shape, x/scale) / gammaFn(shape);
+}
+function gammaFn(x){
+  const g = 7;
+  const C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+             771.32342877765313, -176.61502916214059, 12.507343278686905,
+             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.PI / (Math.sin(Math.PI*x) * gammaFn(1-x));
+  x -= 1;
+  let a = C[0];
+  const t = x + g + 0.5;
+  for (let i = 1; i < g+2; i++) a += C[i]/(x+i);
+  return Math.sqrt(2*Math.PI) * Math.pow(t, x+0.5) * Math.exp(-t) * a;
+}
+function lowerIncompleteGamma(a, x){
+  if (x <= 0) return 0;
+  if (x < a + 1){
+    let ap = a, sum = 1/a, del = sum;
+    for (let n = 1; n < 200; n++){
+      ap += 1; del *= x/ap; sum += del;
+      if (Math.abs(del) < Math.abs(sum)*1e-12) break;
+    }
+    return sum * Math.exp(-x + a*Math.log(x) - logGamma(a));
+  } else {
+    let b = x + 1 - a, c = 1e30, d = 1/b, h = d;
+    for (let i = 1; i < 200; i++){
+      const an = -i*(i-a);
+      b += 2;
+      d = an*d + b; if (Math.abs(d) < 1e-30) d = 1e-30;
+      c = b + an/c; if (Math.abs(c) < 1e-30) c = 1e-30;
+      d = 1/d;
+      const del = d*c; h *= del;
+      if (Math.abs(del - 1) < 1e-12) break;
+    }
+    return 1 - Math.exp(-x + a*Math.log(x) - logGamma(a)) * h;
+  }
+}
+function logGamma(x){
+  const g = 7;
+  const C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+             771.32342877765313, -176.61502916214059, 12.507343278686905,
+             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI/Math.sin(Math.PI*x)) - logGamma(1-x);
+  x -= 1;
+  let a = C[0];
+  const t = x + g + 0.5;
+  for (let i = 1; i < g+2; i++) a += C[i]/(x+i);
+  return 0.5*Math.log(2*Math.PI) + (x+0.5)*Math.log(t) - t + Math.log(a);
+}
+
+function invNorm(p){
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02,
+             -2.759285104469687e+02, 1.383577518672690e+02,
+             -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02,
+             -1.556989798598866e+02, 6.680131188771972e+01,
+             -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01,
+             -2.400758277161838e+00, -2.549732539343734e+00,
+              4.374664141464968e+00, 2.938163982698783e+00];
+  const d = [ 7.784695709041462e-03, 3.224671290700398e-01,
+              2.445134137142996e+00, 3.754408661907416e+00];
+  const pl = 0.02425, ph = 1 - pl;
+  let q, r;
+  if (p < pl){
+    q = Math.sqrt(-2*Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+           ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else if (p > ph){
+    q = Math.sqrt(-2*Math.log(1-p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+            ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else {
+    q = p - 0.5; r = q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q /
+           (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  }
+}
+
+// =====================================================================
+// LISTA Y SELECCIÓN DE ESTACIONES
+// =====================================================================
+function renderStationList(){
+  const card = document.getElementById('stationListCard');
+  const cont = document.getElementById('stationList');
+  const claves = Object.keys(estaciones).sort();
+  if (!claves.length){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+
+  let html = '<table><thead><tr><th>Clave</th><th>Nombre</th><th>Estado</th><th>Días</th></tr></thead><tbody>';
+  claves.forEach(c => {
+    const e = estaciones[c];
+    const cat = catalogo[c] || {};
+    html += `<tr data-clave="${c}">
+      <td>${c}</td>
+      <td>${cat.nombre || (e.info['Estación:'] || '—')}</td>
+      <td>${cat.estado || (e.info['Estado:'] || '—')}</td>
+      <td>${e.nDatos}</td>
+    </tr>`;
+  });
+  cont.innerHTML = html + '</tbody></table>';
+  cont.querySelectorAll('tr[data-clave]').forEach(tr =>
+    tr.addEventListener('click', () => seleccionarEstacion(tr.dataset.clave)));
+}
+
+function seleccionarEstacion(clave){
+  claveActual = clave;
+  document.querySelectorAll('#stationList tr').forEach(tr =>
+    tr.classList.toggle('selected', tr.dataset.clave === clave));
+  renderEstacion();
+}
+
+// =====================================================================
+// RENDERIZADO
+// =====================================================================
+function renderEstacion(){
+  const e = estaciones[claveActual];
+  if (!e) return;
+  const cat = catalogo[claveActual] || {};
+  const info = e.info;
+
+  const filas = [
+    ['Clave', claveActual],
+    ['Estación', cat.nombre || info['Estación:'] || '—'],
+    ['Estado', cat.estado || info['Estado:'] || '—'],
+    ['Municipio', cat.municipio || info['Municipio:'] || '—'],
+    ['Cuenca', cat.cuenca || '—'],
+    ['Región hidrológica', cat.region || '—'],
+    ['Latitud', (cat.lat != null && !isNaN(cat.lat)) ? cat.lat.toFixed(4) : '—'],
+    ['Longitud', (cat.lon != null && !isNaN(cat.lon)) ? cat.lon.toFixed(4) : '—'],
+    ['Altitud', (cat.alt != null && !isNaN(cat.alt)) ? cat.alt + ' m' : '—'],
+    ['Fuente ETP', e.fuenteETP === 'evap' ? 'Evaporación medida' :
+                  e.fuenteETP === 'hargreaves' ? 'Hargreaves (T medida)' :
+                  e.fuenteETP === 'hargreaves_clim' ? 'Hargreaves (T climatológica)' : 'N/D']
+  ];
+  document.getElementById('infoGrid').innerHTML = filas.map(([k,v]) =>
+    `<div class="stat"><label>${k}</label><span style="font-size:13px">${v}</span></div>`
+  ).join('');
+  document.getElementById('infoCard').classList.remove('hidden');
+
+  // Mapa con TODAS las estaciones cargadas
+  setTimeout(() => {
+    if (map){ map.remove(); map = null; }
+    estacionMarkers = {};
+
+    // Calcular el centro y zoom apropiado según todas las estaciones con coordenadas
+    const puntos = [];
+    Object.keys(estaciones).forEach(c => {
+      const cat = catalogo[c];
+      if (cat && cat.lat != null && cat.lon != null && !isNaN(cat.lat) && !isNaN(cat.lon)){
+        puntos.push({clave: c, lat: cat.lat, lon: cat.lon, cat});
+      }
+    });
+
+    let centro = [23.6, -102.5], zoom = 5;
+    if (puntos.length){
+      const lats = puntos.map(p => p.lat);
+      const lons = puntos.map(p => p.lon);
+      centro = [(Math.min(...lats) + Math.max(...lats))/2,
+                (Math.min(...lons) + Math.max(...lons))/2];
+      // Calcular zoom aproximado
+      const maxDiff = Math.max(Math.max(...lats) - Math.min(...lats),
+                               Math.max(...lons) - Math.min(...lons));
+      if (maxDiff > 10) zoom = 4;
+      else if (maxDiff > 5) zoom = 5;
+      else if (maxDiff > 2) zoom = 6;
+      else if (maxDiff > 1) zoom = 7;
+      else if (maxDiff > 0.5) zoom = 8;
+      else if (maxDiff > 0.2) zoom = 9;
+      else if (maxDiff > 0.1) zoom = 10;
+      else zoom = 11;
+    }
+
+    map = L.map('map').setView(centro, zoom);
+    const baseKey = document.getElementById('baseLayerSelect').value;
+    getBaseLayer(baseKey).addTo(map);
+    map.baseLayerKey = baseKey;
+
+    // Añadir marcadores para TODAS las estaciones con coordenadas
+    puntos.forEach(p => {
+      const cat = p.cat;
+      const est = estaciones[p.clave];
+      // Determinar si tiene datos
+      const tieneDatos = !!est;
+
+      // Color del marcador: azul si tiene datos, gris si solo está en catálogo
+      const color = tieneDatos ? '#1565c0' : '#9e9e9e';
+      const fillColor = tieneDatos ? '#42a5f5' : '#bdbdbd';
+
+      // Construir popup con toda la información del catálogo
+      let popupHtml = `<div style="max-width:280px;font-size:12px;line-height:1.5">
+        <b style="font-size:13px">${p.clave}</b><br>
+        <b>${cat.nombre || '—'}</b><br>
+        <hr style="margin:4px 0;border:none;border-top:1px solid #ddd">
+        <b>Estado:</b> ${cat.estado || '—'}<br>
+        <b>Municipio:</b> ${cat.municipio || '—'}<br>
+        <b>Cuenca:</b> ${cat.cuenca || '—'}<br>
+        <b>Región hidrológica:</b> ${cat.region || '—'}<br>
+        <b>Latitud:</b> ${cat.lat != null ? cat.lat.toFixed(4) : '—'}<br>
+        <b>Longitud:</b> ${cat.lon != null ? cat.lon.toFixed(4) : '—'}<br>
+        <b>Altitud:</b> ${cat.alt != null && !isNaN(cat.alt) ? cat.alt + ' m' : '—'}
+      </div>`;
+
+      const marker = L.circleMarker([p.lat, p.lon], {
+        radius: tieneDatos ? 8 : 5,
+        color: '#fff',
+        weight: 2,
+        fillColor: fillColor,
+        fillOpacity: 0.9
+      }).addTo(map).bindPopup(popupHtml);
+
+      marker.on('click', () => {
+        if (tieneDatos){
+          seleccionarEstacion(p.clave);
+        }
+      });
+
+      estacionMarkers[p.clave] = marker;
+
+      // Si es la estación seleccionada, abrir su popup y resaltarla
+      if (p.clave === claveActual){
+        marker.setStyle({radius: 10, color: '#ff6f00', weight: 3});
+        marker.openPopup();
+      }
+    });
+
+    map.invalidateSize();
+  }, 100);
+
+  // Aviso ETP
+  const etpAlert = document.getElementById('etpAlert');
+  etpAlert.classList.remove('hidden');
+  if (e.fuenteETP === 'hargreaves'){
+    etpAlert.innerHTML = `<div class="alert"><strong>⚠ SPEI con ETP estimada (Hargreaves, T medida):</strong>
+      la estación no tiene Evaporación suficiente; la ETP se estimó con la temperatura media del CSV.
+      El SPEI es una aproximación razonable.</div>`;
+  } else if (e.fuenteETP === 'hargreaves_clim'){
+    etpAlert.innerHTML = `<div class="alert"><strong>⚠ SPEI con ETP estimada (Hargreaves, T climatológica):</strong>
+      la estación no tiene Evaporación ni Temperatura suficiente; la ETP se estimó a partir de la latitud.
+      El SPEI es una aproximación gruesa, úsalo con precaución.</div>`;
+  } else if (e.fuenteETP === 'evap'){
+    etpAlert.innerHTML = `<div class="alert info"><strong>✔ SPEI calculado con Evaporación medida:</strong>
+      se usó la columna de Evaporación del CSV (multiplicada por 0.7 para aproximar ETP de referencia).
+    </div>`;
+  } else {
+    etpAlert.classList.add('hidden');
+  }
+
+  renderStats(e);
+  renderPP(e);
+  renderSPI();
+  renderCategorias();
+  renderHeatTemporal();
+
+  ['statsCard','ppCard','spiCard','catCard','heatCard'].forEach(id =>
+    document.getElementById(id).classList.remove('hidden'));
+}
+
+function renderStats(e){
+  const s = e.serie;
+  const vPP = s.filter(d => d.pp !== null);
+  const vEtp = s.filter(d => d.evp !== null && d.evp > 0);
+  const vBal = s.filter(d => d.balance !== null);
+  const totalPP = vPP.reduce((a,b)=>a+b.pp,0);
+  const totalEtp = vEtp.reduce((a,b)=>a+b.evp,0);
+  const f0 = s[0].fecha, f1 = s[s.length-1].fecha;
+  const anios = (f1 - f0) / (1000*60*60*24*365.25);
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat"><label>Período</label><span style="font-size:12px">${f0.toISOString().slice(0,7)} → ${f1.toISOString().slice(0,7)}</span></div>
+    <div class="stat"><label>Meses con PP</label><span>${vPP.length}</span></div>
+    <div class="stat"><label>Meses con balance</label><span>${vBal.length}</span></div>
+    <div class="stat"><label>PP media anual</label><span>${(totalPP/anios).toFixed(0)} mm</span></div>
+    <div class="stat"><label>ETP media anual</label><span>${(totalEtp/anios).toFixed(0)} mm</span></div>
+    <div class="stat"><label>Años</label><span>${anios.toFixed(1)}</span></div>
+  `;
+}
+
+function renderPP(e){
+  Plotly.newPlot('plotPP', [
+    {
+      x: e.serie.map(d => d.fecha),
+      y: e.serie.map(d => d.pp),
+      type:'bar', name:'Precipitación', marker:{color:'#1976d2'},
+      hovertemplate:'%{x|%Y-%m}<br>PP: %{y:.1f} mm<extra></extra>'
+    },
+    {
+      x: e.serie.map(d => d.fecha),
+      y: e.serie.map(d => d.evp),
+      type:'scatter', mode:'lines', name:'ETP',
+      line:{color:'#e65100', width:1.5},
+      hovertemplate:'%{x|%Y-%m}<br>ETP: %{y:.1f} mm<extra></extra>'
+    }
+  ], {
+    margin:{t:10,r:20,l:50,b:40},
+    xaxis:{title:'Fecha', gridcolor:'#eee'},
+    yaxis:{title:'mm', gridcolor:'#eee'},
+    legend:{orientation:'h', y:1.1},
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff'
+  }, {responsive:true});
+}
+
+function colorIndice(v){
+  if (v == null) return '#ccc';
+  if (v <= -2) return '#d73027';
+  if (v <= -1.5) return '#fc8d59';
+  if (v <= -1) return '#fee08b';
+  if (v <   1) return '#d9ef8b';
+  if (v < 1.5) return '#91cf60';
+  if (v <   2) return '#1a9850';
+  return '#006837';
+}
+
+function renderSPI(){
+  const e = estaciones[claveActual];
+  const idx = document.getElementById('indexSelect').value;
+  const escala = document.getElementById('escalaSelect').value;
+  const valores = (idx === 'spi' ? e.spi[escala] : e.spei[escala]) || [];
+  const colores = valores.map(colorIndice);
+  const nValidos = valores.filter(v => v != null).length;
+
+  const shapes = [
+    {type:'line', xref:'paper', x0:0, x1:1, y0:0, y1:0, line:{color:'#333', width:1}},
+    {type:'line', xref:'paper', x0:0, x1:1, y0: 1, y1: 1, line:{color:'#1a9850', width:0.8, dash:'dot'}},
+    {type:'line', xref:'paper', x0:0, x1:1, y0:-1, y1:-1, line:{color:'#d73027', width:0.8, dash:'dot'}},
+    {type:'line', xref:'paper', x0:0, x1:1, y0: 2, y1: 2, line:{color:'#006837', width:1}},
+    {type:'line', xref:'paper', x0:0, x1:1, y0:-2, y1:-2, line:{color:'#a50026', width:1}}
+  ];
+  Plotly.newPlot('plotSPI', [{
+    x: e.serie.map(d => d.fecha),
+    y: valores, type:'bar',
+    marker:{color:colores, line:{width:0}},
+    hovertemplate:'%{x|%Y-%m}<br>'+idx.toUpperCase()+'-'+escala+': %{y:.2f}<extra></extra>'
+  }], {
+    margin:{t:30,r:20,l:50,b:40},
+    title:{text:`${idx.toUpperCase()}-${escala} · ${nValidos} valores válidos`, font:{size:12}},
+    xaxis:{title:'Fecha', gridcolor:'#eee'},
+    yaxis:{title:idx.toUpperCase()+'-'+escala, range:[-3,3], gridcolor:'#eee'},
+    shapes,
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff'
+  }, {responsive:true});
+}
+
+function renderCategorias(){
+  const e = estaciones[claveActual];
+  if (!e) return;
+  const idx = document.getElementById('indexSelect').value;
+  const escala = document.getElementById('escalaSelect').value;
+  const vals = (idx === 'spi' ? e.spi[escala] : e.spei[escala]).filter(v => v != null);
+
+  document.getElementById('catTitle').textContent =
+    `${idx.toUpperCase()}-${escala} · ${vals.length} meses con dato`;
+
+  const cats = [
+    {n:'Extremadamente seco (≤ -2)',      f:v => v <= -2},
+    {n:'Severamente seco (-2 a -1.5)',    f:v => v > -2 && v <= -1.5},
+    {n:'Moderadamente seco (-1.5 a -1)',  f:v => v > -1.5 && v <= -1},
+    {n:'Normal (-1 a 1)',                 f:v => v > -1 && v < 1},
+    {n:'Moderadamente húmedo (1 a 1.5)',  f:v => v >= 1 && v < 1.5},
+    {n:'Muy húmedo (1.5 a 2)',            f:v => v >= 1.5 && v < 2},
+    {n:'Extremadamente húmedo (≥ 2)',     f:v => v >= 2}
+  ];
+  const total = vals.length;
+  document.querySelector('#catTable tbody').innerHTML = cats.map(c => {
+    const n = vals.filter(c.f).length;
+    const pct = total ? (n/total*100).toFixed(1) : '0.0';
+    return `<tr><td>${c.n}</td><td>${n}</td><td>${pct} %</td></tr>`;
+  }).join('');
+}
+
+function renderHeatTemporal(){
+  const e = estaciones[claveActual];
+  const idx = document.getElementById('indexSelect').value;
+  const set = idx === 'spi' ? e.spi : e.spei;
+  Plotly.newPlot('plotHeat', [{
+    x: e.serie.map(d => d.fecha),
+    y: ESCALAS.map(esc => idx.toUpperCase()+'-'+esc),
+    z: ESCALAS.map(esc => set[esc]),
+    type:'heatmap',
+    colorscale:[[0,'#a50026'],[0.167,'#d73027'],[0.333,'#fc8d59'],
+                [0.5,'#ffffbf'],[0.667,'#91cf60'],[0.833,'#1a9850'],[1,'#006837']],
+    zmin:-3, zmax:3,
+    hovertemplate:'%{x|%Y-%m}<br>%{y}: %{z:.2f}<extra></extra>'
+  }], {
+    margin:{t:10,r:20,l:80,b:40},
+    xaxis:{title:'Fecha', gridcolor:'#eee'},
+    yaxis:{autorange:'reversed'},
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff'
+  }, {responsive:true});
+}
+
+document.getElementById('indexSelect').addEventListener('change', () => { renderSPI(); renderCategorias(); renderHeatTemporal(); });
+document.getElementById('escalaSelect').addEventListener('change', () => { renderSPI(); renderCategorias(); renderHeatTemporal(); });
+
+// Cambio de capa base
+document.getElementById('baseLayerSelect').addEventListener('change', e => {
+  if (!map) return;
+  map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
+  getBaseLayer(e.target.value).addTo(map);
+});
+document.getElementById('baseLayerSelectHeat').addEventListener('change', e => {
+  if (!mapHeat) return;
+  mapHeat.eachLayer(l => { if (l instanceof L.TileLayer) mapHeat.removeLayer(l); });
+  getBaseLayer(e.target.value).addTo(mapHeat);
+});
+
+// =====================================================================
+// DESCARGA CSV
+// =====================================================================
+document.getElementById('btnDescargar').addEventListener('click', () => {
+  const e = estaciones[claveActual];
+  const headers = ['Fecha','PP_mm','ETP_mm','Balance','OrigenETP',
+                   ...ESCALAS.map(x=>'SPI-'+x), ...ESCALAS.map(x=>'SPEI-'+x)];
+  const filas = [headers.join(',')];
+  e.serie.forEach((d, i) => {
+    const f = d.fecha.toISOString().slice(0,10);
+    const spiVals = ESCALAS.map(esc => e.spi[esc][i] == null ? '' : e.spi[esc][i].toFixed(4));
+    const speiVals = ESCALAS.map(esc => e.spei[esc][i] == null ? '' : e.spei[esc][i].toFixed(4));
+    filas.push([f, d.pp ?? '', d.evp ?? '', d.balance ?? '', d.origen ?? '',
+                ...spiVals, ...speiVals].join(','));
+  });
+  const blob = new Blob([filas.join('\n')], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `SPI_SPEI_${claveActual}.csv`; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// =====================================================================
+// MAPA DE CALOR
+// =====================================================================
+function renderHeatFechaOptions(){
+  const setF = new Set();
+  Object.values(estaciones).forEach(e => {
+    e.serie.forEach(d => {
+      if (d.pp !== null) setF.add(d.fecha.toISOString().slice(0,7));
+    });
+  });
+  const fechas = Array.from(setF).sort();
+  const sel = document.getElementById('heatFecha');
+  sel.innerHTML = fechas.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (fechas.length) sel.value = fechas[fechas.length-1];
+}
+
+document.getElementById('btnRenderHeat').addEventListener('click', renderMapaCalor);
+document.getElementById('heatIndex').addEventListener('change', renderMapaCalor);
+document.getElementById('heatEscala').addEventListener('change', renderMapaCalor);
+document.getElementById('heatFecha').addEventListener('change', renderMapaCalor);
+document.getElementById('toggleHeat').addEventListener('change', renderMapaCalor);
+document.getElementById('toggleMarkers').addEventListener('change', renderMapaCalor);
+
+function renderMapaCalor(){
+  const idx = document.getElementById('heatIndex').value;
+  const escala = document.getElementById('heatEscala').value;
+  const fecha = document.getElementById('heatFecha').value;
+  if (!fecha){ alert('Selecciona una fecha.'); return; }
+
+  if (!mapHeat){
+    mapHeat = L.map('mapHeat').setView([23.6, -102.5], 5);
+    const baseKey = document.getElementById('baseLayerSelectHeat').value;
+    getBaseLayer(baseKey).addTo(mapHeat);
+  }
+  mapHeat.invalidateSize();
+
+  if (heatLayer){ mapHeat.removeLayer(heatLayer); heatLayer = null; }
+  if (markerLayerGroup){ mapHeat.removeLayer(markerLayerGroup); markerLayerGroup = null; }
+  markerLayerGroup = L.layerGroup().addTo(mapHeat);
+
+  const puntos = [];
+  let sinCoords = 0, sinFecha = 0, sinValor = 0, sinSPEI = 0;
+
+  Object.entries(estaciones).forEach(([clave, e]) => {
+    const cat = catalogo[clave];
+    if (!cat || cat.lat == null || cat.lon == null || isNaN(cat.lat) || isNaN(cat.lon)){
+      sinCoords++; return;
+    }
+    const i = e.serie.findIndex(d => d.fecha.toISOString().slice(0,7) === fecha);
+    if (i < 0){ sinFecha++; return; }
+    const set = idx === 'spi' ? e.spi : e.spei;
+    const v = set[escala]?.[i];
+    if (v == null){
+      sinValor++;
+      if (idx === 'spei') sinSPEI++;
+      return;
+    }
+    puntos.push({clave, lat:cat.lat, lon:cat.lon, v,
+                 nombre: cat.nombre || '', estado: cat.estado || ''});
+  });
+
+  let msg = `Mapa: <b>${puntos.length}</b> estaciones con dato para ${fecha} (${idx.toUpperCase()}-${escala})`;
+  if (sinCoords) msg += ` · <span class="badge warn">${sinCoords} sin coords</span>`;
+  if (sinFecha)  msg += ` · <span class="badge warn">${sinFecha} sin ese mes</span>`;
+  if (sinValor)  msg += ` · <span class="badge warn">${sinValor} sin ${idx.toUpperCase()}</span>`;
+  document.getElementById('status').innerHTML = msg;
+
+  if (!puntos.length){
+    log(`Sin datos para ${idx.toUpperCase()}-${escala} en ${fecha}. ` +
+        `(sin coords: ${sinCoords}, sin mes: ${sinFecha}, sin valor: ${sinValor})`);
+    return;
+  }
+
+  if (document.getElementById('toggleHeat').checked){
+    const heatData = puntos.map(p => {
+      const intensidad = Math.max(0, Math.min(1, (-p.v + 3) / 6));
+      return [p.lat, p.lon, intensidad];
+    });
+    heatLayer = L.heatLayer(heatData, {
+      radius: 40, blur: 30, maxZoom: 8, minOpacity: 0.4,
+      gradient: {0.0:'#006837', 0.3:'#91cf60', 0.5:'#ffffbf',
+                 0.7:'#fc8d59', 0.9:'#d73027', 1.0:'#a50026'}
+    }).addTo(mapHeat);
+  }
+
+  if (document.getElementById('toggleMarkers').checked){
+    puntos.forEach(p => {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 6, color:'#333', weight:0.6,
+        fillColor: colorIndice(p.v), fillOpacity: 0.9
+      }).addTo(markerLayerGroup)
+        .bindPopup(`<b>${p.clave}</b> — ${p.nombre}<br>${p.estado}<br>
+                    ${idx.toUpperCase()}-${escala}: <b>${p.v.toFixed(2)}</b>`);
+    });
+  }
+}
+
+// =====================================================================
+// LIMPIAR
+// =====================================================================
+document.getElementById('btnClear').addEventListener('click', () => {
+  estaciones = {}; claveActual = null;
+  if (map){ map.remove(); map = null; }
+  if (mapHeat){ mapHeat.remove(); mapHeat = null; heatLayer = null; markerLayerGroup = null; }
+  estacionMarkers = {};
+  document.getElementById('logPanel').textContent = '';
+  document.querySelectorAll('.card').forEach(c => {
+    if (c.id && c.id !== 'stationListCard') c.classList.add('hidden');
+  });
+  document.getElementById('status').textContent = 'Esperando archivos…';
+});
+
+// =====================================================================
+// DEMO
+// =====================================================================
+document.getElementById('btnCargarDemo').addEventListener('click', () => {
+  log('Generando demo…');
+  const demo = [
+    {clave:'C24014', lat:22.11, lon:-99.286, alt:491, estado:'San Luis Potosí', municipio:'Tamasopo', nombre:'Damián Carmona', cuenca:'Río Tampaón', region:'Pánuco'},
+    {clave:'C24015', lat:22.21, lon:-98.39, alt:55, estado:'San Luis Potosí', municipio:'Ébano', nombre:'Ébano', cuenca:'Río Moctezuma', region:'Pánuco'},
+    {clave:'C24001', lat:21.85, lon:-99.38, alt:777, estado:'San Luis Potosí', municipio:'Tamasopo', nombre:'Agua Buena', cuenca:'Río Tampaón', region:'Pánuco'},
+    {clave:'C19005', lat:24.10, lon:-99.82, alt:1080, estado:'Nuevo León', municipio:'Aramberri', nombre:'Aramberri', cuenca:'Río San Fernando', region:'Bravo-Conchos'},
+    {clave:'C22001', lat:20.18, lon:-100.15, alt:2629, estado:'Querétaro', municipio:'Amealco', nombre:'Amealco', cuenca:'Río Lerma', region:'Lerma-Santiago'}
+  ];
+  demo.forEach(d => catalogo[d.clave] = d);
+
+  estaciones = {};
+  demo.forEach(d => {
+    const serie = [];
+    for (let y = 1980; y <= 2023; y++){
+      for (let m = 0; m < 12; m++){
+        const pp = Math.max(0, 40 + 50*Math.sin(m*Math.PI/6) + (Math.random()-0.5)*60);
+        const T  = 18 + 8*Math.sin((m-3)*Math.PI/6) + (Math.random()-0.5)*4;
+        const etp = Math.max(0, 80 + 40*Math.sin((m-3)*Math.PI/6) + (Math.random()-0.5)*30);
+        serie.push({
+          fecha: new Date(y, m, 1),
+          pp, evp: etp, tmed: T,
+          balance: pp - etp, origen: 'evap'
+        });
+      }
+    }
+    const spi = {}, spei = {};
+    ESCALAS.forEach(e => {
+      spi[e]  = calcularIndice(serie, e, 'pp');
+      spei[e] = calcularIndice(serie, e, 'balance');
+    });
+    estaciones[d.clave] = {
+      info: {'Clave:':d.clave,'Estación:':d.nombre,'Estado:':d.estado,'Municipio:':d.municipio},
+      clave:d.clave, serie, spi, spei, nDatos: serie.length*30, fuenteETP:'evap'
+    };
+  });
+
+  log(`✔ ${demo.length} estaciones demo`);
+  document.getElementById('status').innerHTML =
+    `<span class="badge">✔</span> ${demo.length} estaciones demo`;
+  renderStationList();
+  renderHeatFechaOptions();
+  seleccionarEstacion(demo[0].clave);
+});
+
+log('Listo. Carga CSV o presiona demo.');
+</script>
+</body>
+</html>
