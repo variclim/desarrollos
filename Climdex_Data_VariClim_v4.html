@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RClimDex GeoAnalytics - Satelital & Híbrido</title>
+
+<!-- Leaflet y JSZip -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- Librerías añadidas para generación de PDF y captura de mapa -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+  :root {
+    --primary: #0d47a1;
+    --primary-hover: #1565c0;
+    --success: #2e7d32;
+    --danger: #c62828;
+    --neutral: #757575;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #d0d7de;
+    --text: #212529;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+  }
+  .container {
+    background: var(--card);
+    max-width: 1200px;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+    padding: 26px 34px;
+  }
+  h1 {
+    font-family: "Times New Roman", Times, Georgia, serif;
+    font-size: 2.2rem;
+    color: var(--primary);
+    text-align: center;
+    margin: 0 0 4px 0;
+  }
+  .subtitle {
+    text-align: center;
+    color: #6c757d;
+    margin: 0 0 22px 0;
+    font-size: 0.92rem;
+  }
+  .section {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    background: #fafbfc;
+  }
+  .section h2 {
+    font-size: 1.05rem;
+    margin: 0 0 12px 0;
+    color: #343a40;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 6px;
+  }
+  .grid-upload {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .file-card {
+    border: 2px dashed #90caf9;
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 14px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+  }
+  .file-card:hover { background: #e3f2fd; }
+  .file-card input[type="file"] {
+    position: absolute;
+    left: 0; top: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-sig-up { background: #ffebee; color: var(--danger); border: 1px solid #ffcdd2; }
+  .badge-sig-down { background: #e3f2fd; color: var(--primary); border: 1px solid #bbdefb; }
+  .badge-nonsig { background: #f5f5f5; color: var(--neutral); border: 1px solid #e0e0e0; }
+
+  .grid-params {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  label { font-size: 0.82rem; font-weight: 600; color: #495057; display: block; margin-bottom: 4px; }
+  input[type="number"], select {
+    width: 100%; box-sizing: border-box;
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px;
+    background: #fff; font-size: 0.88rem;
+  }
+  .indices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+    gap: 8px 12px;
+  }
+  .cb-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.84rem; cursor: pointer;
+  }
+  .actions {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0;
+  }
+  button.btn {
+    padding: 10px 22px; font-size: 0.92rem; font-weight: 600; border-radius: 5px;
+    border: none; cursor: pointer; color: #fff; transition: background 0.2s;
+  }
+  button.btn-primary { background: var(--primary); }
+  button.btn-primary:hover { background: var(--primary-hover); }
+  button.btn-success { background: var(--success); }
+  button.btn-danger { background: #b71c1c; }
+  button.btn-danger:hover { background: #d32f2f; }
+
+  /* Contenedor del Mapa */
+  #map-container {
+    width: 100%;
+    height: 520px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    margin-top: 10px;
+    box-shadow: inset 0 0 6px rgba(0,0,0,0.15);
+  }
+  .map-toolbar {
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;
+    background: #eef2f7; padding: 10px 14px; border-radius: 6px; margin-bottom: 10px;
+  }
+  .chart-box {
+    margin-top: 15px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    background: #fff;
+    display: none;
+  }
+  canvas#trendCanvas { width: 100%; height: 260px; }
+
+  #log-area {
+    margin-top: 14px; padding: 12px; background: #0d1117; color: #7ee787;
+    font-family: ui-monospace, Consolas, monospace; font-size: 0.8rem;
+    border-radius: 6px; max-height: 180px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .table-scroll {
+    overflow-x: auto; max-height: 380px; border: 1px solid var(--border);
+    border-radius: 6px; margin-top: 10px;
+  }
+  table.tbl {
+    width: 100%; border-collapse: collapse; font-size: 0.82rem;
+  }
+  table.tbl th, table.tbl td {
+    border: 1px solid #dee2e6; padding: 6px 10px; text-align: right; white-space: nowrap;
+  }
+  table.tbl th { background: #f8f9fa; position: sticky; top: 0; z-index: 2; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>RClimDex GeoAnalytics</h1>
+  <p class="subtitle">Análisis Climático Espacial con Vistas Satelitales (Esri World Imagery & Google Hybrid)</p>
+
+  <!-- 1. Carga de Archivos -->
+  <div class="section">
+    <h2>1. Datos de Entrada (Catálogo y Archivos de Estaciones)</h2>
+    <div class="grid-upload">
+      <div class="file-card">
+        <b>📍 Catálogo de Estaciones Climatológicas</b>
+        <p style="font-size:0.8rem; color:#666; margin:4px 0;">Selecciona <code>0_Catalogo_de_estaciones_climatologicas.csv</code></p>
+        <input type="file" id="catInput" accept=".csv,.txt" onchange="loadCatalog(event)">
+        <div id="catStatus" style="font-size:0.8rem; font-weight:600; color:var(--primary);">No cargado</div>
+      </div>
+      <div class="file-card">
+        <b>📁 Archivos de Estaciones (Carpeta o CSVs)</b>
+        <p style="font-size:0.8rem; color:#666; margin:4px 0;">Cargar carpeta completa con CSVs de Conagua / RClimDex</p>
+        <input type="file" id="filesInput" webkitdirectory directory multiple onchange="loadStationFiles(event)">
+        <div id="filesStatus" style="font-size:0.8rem; font-weight:600; color:var(--primary);">0 archivos seleccionados</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Parámetros -->
+  <div class="section">
+    <h2>2. Configuración del Periodo Base y Umbrales</h2>
+    <div class="grid-params">
+      <div>
+        <label for="baseStart">Año inicial periodo base:</label>
+        <input type="number" id="baseStart" value="1961">
+      </div>
+      <div>
+        <label for="baseEnd">Año final periodo base:</label>
+        <input type="number" id="baseEnd" value="1990">
+      </div>
+      <div>
+        <label for="rnnThresh">Umbral Rnn (mm precipitación):</label>
+        <input type="number" id="rnnThresh" value="25">
+      </div>
+      <div>
+        <label for="sigAlpha">Nivel de significancia (&alpha;):</label>
+        <input type="number" id="sigAlpha" value="0.05" step="0.01">
+      </div>
+      <div>
+        <label for="minDays">Mín. días válidos por año:</label>
+        <input type="number" id="minDays" value="300">
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Selección de Índices -->
+  <div class="section">
+    <h2>3. Índices ETCCDI a Calcular</h2>
+    <div class="indices-grid">
+      <label class="cb-label"><input type="checkbox" id="idx_prcptot" checked> PRCPTOT (Pr Total)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_sdii" checked> SDII (Intensidad Simple)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_rx1d" checked> Rx1day (Máx 1 día)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_rx5d" checked> Rx5day (Máx 5 días)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_r10" checked> R10mm (Pr &ge; 10mm)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_r20" checked> R20mm (Pr &ge; 20mm)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_rnn" checked> Rnnmm (Pr &ge; Umbral)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_r95p" checked> R95p (Días muy húmedos)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_r99p" checked> R99p (Extrem. húmedos)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_cdd" checked> CDD (Días secos consec.)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_cwd" checked> CWD (Días húmedos consec.)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_dtr" checked> DTR (Rango diurno T)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_su" checked> SU35 (Días muy cálidos > 35°C)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_fd" checked> FD0 (Heladas)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_tr" checked> TR20 (Noches tropicales)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_id" checked> ID0 (Días de hielo)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_extremes" checked> TXx, TXn, TNx, TNn</label>
+      <label class="cb-label"><input type="checkbox" id="idx_gsl" checked> GSL (Estación cultivo)</label>
+      <label class="cb-label"><input type="checkbox" id="idx_percentiles" checked> TX10p, TX90p, TN10p, TN90p</label>
+      <label class="cb-label"><input type="checkbox" id="idx_spells" checked> WSDI & CSDI (Olas calor/frío)</label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" onclick="executeBatchAnalysis()">⚡ Procesar y Calcular Todas las Estaciones</button>
+    <button class="btn btn-success" id="btnExportCSV" style="display:none;" onclick="exportConsolidatedCSV()">📥 Descargar CSV Consolidado</button>
+    <button class="btn btn-success" id="btnExportTrends" style="display:none;" onclick="exportTrendsCSV()">📊 Descargar Tabla de Tendencias y Significancia</button>
+    <button class="btn btn-danger" id="btnExportPDFCurrent" style="display:none;" onclick="exportPDFReport(false)">📑 Descargar Informe PDF (Índice Actual)</button>
+    <button class="btn btn-danger" id="btnExportPDFAll" style="display:none;" onclick="exportPDFReport(true)">📚 Descargar Informe Completo PDF (Todos los Índices)</button>
+  </div>
+
+  <div id="log-area">Esperando archivos...</div>
+
+  <!-- 4. Visualización en Mapa Satelital -->
+  <div id="geoSection" style="display:none; margin-top: 24px;">
+    <div class="section">
+      <h2>4. Visualización Espacial Satelital (Esri / Google Hybrid)</h2>
+      <div class="map-toolbar">
+        <div>
+          <label style="display:inline; margin-right:6px;">Índice a Visualizar:</label>
+          <select id="mapIndexSelect" onchange="updateMapDisplay()" style="width:auto; display:inline-block;"></select>
+        </div>
+        <div>
+          <label style="display:inline; margin-right:6px;">Modo de Vista:</label>
+          <select id="mapModeSelect" onchange="updateMapDisplay()" style="width:auto; display:inline-block;">
+            <option value="markers">Marcadores con Veredicto de Tendencia</option>
+            <option value="heatmap_val">Mapa de Calor: Valores Promedio</option>
+            <option value="heatmap_trend">Mapa de Calor: Magnitud de Tendencia (|Slope|)</option>
+          </select>
+        </div>
+        <div style="font-size:0.85rem;">
+          <span class="badge badge-sig-up">▲ Aumento Sig.</span>
+          <span class="badge badge-sig-down">▼ Disminución Sig.</span>
+          <span class="badge badge-nonsig">● No Significativo</span>
+        </div>
+      </div>
+
+      <div id="map-container"></div>
+
+      <!-- Gráfico interactivo tipo plotx() de R -->
+      <div class="chart-box" id="chartBox">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <b id="chartTitle" style="color:var(--primary); font-size:1rem;">Curva Temporal y Tendencia Lineal</b>
+          <button onclick="document.getElementById('chartBox').style.display='none'" style="cursor:pointer; border:1px solid #ccc; background:#fff; border-radius:4px; padding:2px 8px;">✕ Cerrar</button>
+        </div>
+        <canvas id="trendCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 5. Tabla Resumen de Tendencias -->
+    <div class="section">
+      <h2>5. Resumen de Tendencias y Significancia Estadística (p &lt; &alpha;)</h2>
+      <div class="table-scroll">
+        <table class="tbl" id="trendsTable">
+          <thead>
+            <tr>
+              <th>Clave</th>
+              <th>Estación</th>
+              <th>Índice</th>
+              <th>Periodo</th>
+              <th>N (Años)</th>
+              <th>Pendiente (&beta; / año)</th>
+              <th>Cambio / Década</th>
+              <th>Error Estándar</th>
+              <th>R²</th>
+              <th>Valor p (p-value)</th>
+              <th>Veredicto de Curva</th>
+            </tr>
+          </thead>
+          <tbody id="trendsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let catalogData = {};
+let rawFiles = [];
+let stationDataCollection = {};
+let trendResults = [];
+let mapInstance = null;
+let markerLayerGroup = null;
+let heatLayer = null;
+
+function log(m) {
+  const el = document.getElementById("log-area");
+  el.textContent += m + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() { document.getElementById("log-area").textContent = ""; }
+
+function clean(str) {
+  return String(str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function loadCatalog(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const lines = evt.target.result.split(/\r?\n/);
+    catalogData = {};
+    let colMap = { clave: -1, nombre: -1, lat: -1, lon: -1, alt: -1, edo: -1, mun: -1 };
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const cLine = clean(lines[i]);
+      if (cLine.includes("clave") && (cLine.includes("latitud") || cLine.includes("nombre"))) {
+        const parts = lines[i].split(",").map(clean);
+        parts.forEach((p, idx) => {
+          if (p.includes("clave")) colMap.clave = idx;
+          else if (p.includes("nombre")) colMap.nombre = idx;
+          else if (p.includes("latitud")) colMap.lat = idx;
+          else if (p.includes("longitud")) colMap.lon = idx;
+          else if (p.includes("altitud")) colMap.alt = idx;
+          else if (p.includes("estado")) colMap.edo = idx;
+          else if (p.includes("municipio")) colMap.mun = idx;
+        });
+        break;
+      }
+    }
+
+    if (colMap.clave === -1 || colMap.lat === -1) {
+      alert("No se identificaron las columnas 'Clave' y 'Latitud' en el catálogo.");
+      return;
+    }
+
+    let count = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
+      if (parts.length <= Math.max(colMap.clave, colMap.lat, colMap.lon)) continue;
+
+      const clave = parts[colMap.clave].trim().toUpperCase();
+      const lat = parseFloat(parts[colMap.lat]);
+      const lon = parseFloat(parts[colMap.lon]);
+      if (!clave || isNaN(lat) || isNaN(lon)) continue;
+
+      catalogData[clave] = {
+        clave: clave,
+        nombre: colMap.nombre !== -1 ? parts[colMap.nombre] : clave,
+        lat: lat,
+        lon: lon,
+        alt: colMap.alt !== -1 ? parseFloat(parts[colMap.alt]) : 0,
+        estado: colMap.edo !== -1 ? parts[colMap.edo] : "",
+        municipio: colMap.mun !== -1 ? parts[colMap.mun] : ""
+      };
+      count++;
+    }
+
+    document.getElementById("catStatus").textContent = `✓ ${count.toLocaleString()} estaciones cargadas`;
+    log(`[Catálogo] ${count.toLocaleString()} estaciones indexadas correctamente.`);
+  };
+  reader.readAsText(file, "ISO-8859-1");
+}
+
+function loadStationFiles(e) {
+  rawFiles = Array.from(e.target.files).filter(f => {
+    const n = f.name.toLowerCase();
+    return n.endsWith(".csv") || n.endsWith(".txt") || n.endsWith(".dat");
+  });
+  document.getElementById("filesStatus").textContent = `✓ ${rawFiles.length} archivos detectados`;
+  clearLog();
+  log(`Se prepararon ${rawFiles.length} archivos para el procesamiento.`);
+}
+
+function logGamma(x) {
+  const p = [676.5203681218851, -1259.1392167224028, 771.32342877765313,
+             -176.61502916214059, 12.507343278686905, -0.13857109526572012,
+             9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - logGamma(1 - x);
+  x -= 1;
+  let a = 0.99999999999980993;
+  for (let i = 0; i < p.length; i++) a += p[i] / (x + i + 1);
+  const t = x + p.length - 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+function betaInc(a, b, x) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  if (x > (a + 1.0) / (a + b + 2.0)) return 1.0 - betaInc(b, a, 1.0 - x);
+  const lbeta = logGamma(a) + logGamma(b) - logGamma(a + b);
+  const front = Math.exp(Math.log(x) * a + Math.log(1.0 - x) * b - lbeta);
+  let f = 1.0, c = 1.0, d = 0.0;
+  for (let i = 1; i <= 150; i++) {
+    const m = Math.floor(i / 2);
+    let num = (i % 2 === 0) ? (m * (b - m) * x) / ((a + 2 * m - 1) * (a + 2 * m))
+                            : -((a + m) * (a + b + m) * x) / ((a + 2 * m) * (a + 2 * m + 1));
+    d = 1.0 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1.0 / d;
+    c = 1.0 + num / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    const delta = c * d; f *= delta;
+    if (Math.abs(delta - 1.0) < 1e-12) break;
+  }
+  return (front / a) / f;
+}
+
+function calculateLinearTrend(xVals, yVals) {
+  const n = xVals.length;
+  if (n < 4) return null;
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < n; i++) { sumX += xVals[i]; sumY += yVals[i]; }
+  const meanX = sumX / n, meanY = sumY / n;
+
+  let ssXX = 0, ssYY = 0, ssXY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xVals[i] - meanX;
+    const dy = yVals[i] - meanY;
+    ssXX += dx * dx;
+    ssYY += dy * dy;
+    ssXY += dx * dy;
+  }
+  if (ssXX === 0) return null;
+
+  const slope = ssXY / ssXX;
+  const intercept = meanY - slope * meanX;
+  const r2 = (ssYY > 0) ? (ssXY * ssXY) / (ssXX * ssYY) : 0;
+  const rss = Math.max(0, ssYY - slope * ssXY);
+  const df = n - 2;
+  const s2 = rss / df;
+  const stdErr = Math.sqrt(s2 / ssXX);
+
+  let pValue = 1.0;
+  if (stdErr > 0) {
+    const t = slope / stdErr;
+    const xParam = df / (df + t * t);
+    pValue = betaInc(df / 2.0, 0.5, xParam);
+  }
+  return { slope, intercept, stdErr, r2, pValue, n, df };
+}
+
+function quantile(arr, p) {
+  const cleanA = arr.filter(v => v !== null && !isNaN(v)).sort((a,b) => a - b);
+  if (cleanA.length === 0) return null;
+  const n = cleanA.length;
+  const idx = (n - 1) * p;
+  const lo = Math.floor(idx);
+  const fr = idx - lo;
+  if (lo + 1 < n) return cleanA[lo] + fr * (cleanA[lo + 1] - cleanA[lo]);
+  return cleanA[lo];
+}
+
+function parseFile(text, fileName) {
+  const lines = text.split(/\r?\n/);
+  const baseName = fileName.replace(/\.[^/.]+$/, "").toUpperCase();
+  let meta = { clave: baseName, nombre: baseName, lat: null, lon: null };
+
+  let headerIdx = -1;
+  const colMap = { fecha: -1, pr: -1, tx: -1, tn: -1 };
+
+  for (let i = 0; i < Math.min(lines.length, 25); i++) {
+    const raw = lines[i].trim();
+    if (!raw) continue;
+    if (raw.includes(":") && headerIdx === -1) {
+      const p = raw.split(":");
+      const k = clean(p[0]);
+      const v = p.slice(1).join(":").trim();
+      if (k.includes("clave")) meta.clave = v.toUpperCase();
+      else if (k.includes("estacion")) meta.nombre = v;
+    }
+    const c = clean(raw);
+    if (c.includes("fecha") || c.includes("date")) {
+      headerIdx = i;
+      raw.split(",").map(clean).forEach((h, col) => {
+        if (h.includes("fecha") || h.includes("date")) colMap.fecha = col;
+        else if (h.includes("precip") || h.includes("prcp")) colMap.pr = col;
+        else if ((h.includes("max") || h.includes("tmax") || h.includes("tx")) && (h.includes("temp") || h.includes("tmax"))) colMap.tx = col;
+        else if ((h.includes("min") || h.includes("tmin") || h.includes("tn")) && (h.includes("temp") || h.includes("tmin"))) colMap.tn = col;
+      });
+      break;
+    }
+  }
+
+  if (catalogData[meta.clave]) {
+    const cat = catalogData[meta.clave];
+    meta.nombre = cat.nombre;
+    meta.lat = cat.lat;
+    meta.lon = cat.lon;
+    meta.alt = cat.alt;
+    meta.estado = cat.estado;
+    meta.municipio = cat.municipio;
+  }
+
+  const records = [];
+  const start = headerIdx !== -1 ? headerIdx + 1 : 0;
+  const isConagua = colMap.fecha !== -1;
+
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    let y, m, d, pr = null, tx = null, tn = null;
+
+    if (isConagua) {
+      const parts = line.split(",");
+      if (parts.length <= colMap.fecha) continue;
+      const dParts = parts[colMap.fecha].trim().split(/[-/]/);
+      if (dParts.length !== 3) continue;
+      y = parseInt(dParts[0]); m = parseInt(dParts[1]); d = parseInt(dParts[2]);
+
+      const parseV = (idx) => {
+        if (idx === -1 || idx >= parts.length) return null;
+        const v = parts[idx].trim();
+        if (v === "" || v === "-" || v === "NA" || v === "NaN") return null;
+        const num = parseFloat(v);
+        return (isNaN(num) || num <= -99.0) ? null : num;
+      };
+      pr = parseV(colMap.pr);
+      tx = parseV(colMap.tx);
+      tn = parseV(colMap.tn);
+    } else {
+      const parts = line.split(/[\s,]+/).filter(Boolean);
+      if (parts.length < 6) continue;
+      y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
+      const pNum = (v) => { const n = parseFloat(v); return (isNaN(n) || n <= -99.0) ? null : n; };
+      pr = pNum(parts[3]); tx = pNum(parts[4]); tn = pNum(parts[5]);
+    }
+
+    if (isNaN(y) || isNaN(m) || isNaN(d)) continue;
+    if (pr !== null && pr < 0) pr = null;
+    if (tx !== null && tn !== null && tx < tn) { tx = null; tn = null; }
+    if (tx !== null && Math.abs(tx) >= 70) tx = null;
+    if (tn !== null && Math.abs(tn) >= 70) tn = null;
+
+    records.push({ year: y, month: m, day: d, pr, tx, tn });
+  }
+
+  return { meta, records };
+}
+
+function computeIndices(meta, records, p) {
+  const years = [...new Set(records.map(r => r.year))].sort((a,b) => a - b);
+  const series = [];
+
+  const baseWet = records.filter(d => d.year >= p.bStart && d.year <= p.bEnd && d.pr !== null && d.pr >= 1.0).map(d => d.pr);
+  const r95_t = quantile(baseWet, 0.95);
+  const r99_t = quantile(baseWet, 0.99);
+
+  const baseTemp = records.filter(d => d.year >= p.bStart && d.year <= p.bEnd);
+  const doyP = {};
+  if (baseTemp.length > 0) {
+    for (let day = 1; day <= 365; day++) {
+      const winTx = [], winTn = [];
+      baseTemp.forEach(d => {
+        const jul = (d.month - 1) * 30 + d.day;
+        const diff = Math.abs(jul - day);
+        if (diff <= 2 || diff >= 363) {
+          if (d.tx !== null) winTx.push(d.tx);
+          if (d.tn !== null) winTn.push(d.tn);
+        }
+      });
+      doyP[day] = {
+        tx10: quantile(winTx, 0.10),
+        tx90: quantile(winTx, 0.90),
+        tn10: quantile(winTn, 0.10),
+        tn90: quantile(winTn, 0.90)
+      };
+    }
+  }
+
+  for (let yr of years) {
+    const yR = records.filter(d => d.year === yr);
+    const vPr = yR.filter(d => d.pr !== null);
+    const vTx = yR.filter(d => d.tx !== null);
+    const vTn = yR.filter(d => d.tn !== null);
+
+    const okPr = vPr.length >= p.minDays;
+    const okTx = vTx.length >= p.minDays;
+    const okTn = vTn.length >= p.minDays;
+    const okTemp = okTx && okTn;
+
+    const row = { year: yr };
+
+    const wet = yR.filter(d => d.pr !== null && d.pr >= 1.0).map(d => d.pr);
+    const sumPr = wet.reduce((a,b) => a + b, 0);
+
+    row["PRCPTOT"] = okPr ? sumPr : null;
+    row["SDII"] = okPr ? (wet.length ? sumPr / wet.length : 0) : null;
+    row["R10mm"] = okPr ? yR.filter(d => d.pr !== null && d.pr >= 10).length : null;
+    row["R20mm"] = okPr ? yR.filter(d => d.pr !== null && d.pr >= 20).length : null;
+    row[`R${p.rnn}mm`] = okPr ? yR.filter(d => d.pr !== null && d.pr >= p.rnn).length : null;
+
+    row["Rx1day"] = okPr ? (vPr.length ? Math.max(...vPr.map(d=>d.pr)) : 0) : null;
+    if (okPr) {
+      let m5 = 0;
+      for (let i = 0; i <= yR.length - 5; i++) {
+        let s5 = 0, valid = true;
+        for (let k = 0; k < 5; k++) {
+          if (yR[i+k].pr === null) { valid = false; break; }
+          s5 += yR[i+k].pr;
+        }
+        if (valid && s5 > m5) m5 = s5;
+      }
+      row["Rx5day"] = m5;
+    } else row["Rx5day"] = null;
+
+    row["R95p"] = (okPr && r95_t !== null) ? yR.filter(d => d.pr !== null && d.pr > r95_t).reduce((a,b)=>a+b.pr, 0) : null;
+    row["R99p"] = (okPr && r99_t !== null) ? yR.filter(d => d.pr !== null && d.pr > r99_t).reduce((a,b)=>a+b.pr, 0) : null;
+
+    if (okPr) {
+      let maxCDD = 0, curCDD = 0, maxCWD = 0, curCWD = 0;
+      yR.forEach(d => {
+        if (d.pr !== null && d.pr < 1.0) { curCDD++; if (curCDD > maxCDD) maxCDD = curCDD; curCWD = 0; }
+        else if (d.pr !== null && d.pr >= 1.0) { curCWD++; if (curCWD > maxCWD) maxCWD = curCWD; curCDD = 0; }
+        else { curCDD = 0; curCWD = 0; }
+      });
+      row["CDD"] = maxCDD;
+      row["CWD"] = maxCWD;
+    } else { row["CDD"] = null; row["CWD"] = null; }
+
+    if (okTemp) {
+      const dtrs = yR.filter(d => d.tx !== null && d.tn !== null).map(d => d.tx - d.tn);
+      row["DTR"] = dtrs.length ? dtrs.reduce((a,b)=>a+b,0)/dtrs.length : null;
+      // Modificado para umbral térmico > 35°C (SU35)
+      row["SU35"] = yR.filter(d => d.tx !== null && d.tx > 35).length;
+      row["FD0"] = yR.filter(d => d.tn !== null && d.tn < 0).length;
+      row["TR20"] = yR.filter(d => d.tn !== null && d.tn > 20).length;
+      row["ID0"] = yR.filter(d => d.tx !== null && d.tx < 0).length;
+
+      row["TXx"] = Math.max(...vTx.map(d=>d.tx));
+      row["TXn"] = Math.min(...vTx.map(d=>d.tx));
+      row["TNx"] = Math.max(...vTn.map(d=>d.tn));
+      row["TNn"] = Math.min(...vTn.map(d=>d.tn));
+
+      let cTx10 = 0, cTx90 = 0, cTn10 = 0, cTn90 = 0;
+      let wsdiCount = 0, curW = 0;
+      let csdiCount = 0, curC = 0;
+
+      yR.forEach(d => {
+        const jul = Math.min(365, (d.month - 1) * 30 + d.day);
+        const th = doyP[jul];
+        if (th) {
+          if (d.tx !== null && th.tx10 !== null && d.tx < th.tx10) cTx10++;
+          if (d.tx !== null && th.tx90 !== null && d.tx > th.tx90) {
+            cTx90++; curW++;
+          } else {
+            if (curW >= 6) wsdiCount += curW;
+            curW = 0;
+          }
+          if (d.tn !== null && th.tn10 !== null && d.tn < th.tn10) {
+            cTn10++; curC++;
+          } else {
+            if (curC >= 6) csdiCount += curC;
+            curC = 0;
+          }
+          if (d.tn !== null && th.tn90 !== null && d.tn > th.tn90) cTn90++;
+        }
+      });
+      if (curW >= 6) wsdiCount += curW;
+      if (curC >= 6) csdiCount += curC;
+
+      row["TX10p"] = (cTx10 / vTx.length) * 100;
+      row["TX90p"] = (cTx90 / vTx.length) * 100;
+      row["TN10p"] = (cTn10 / vTn.length) * 100;
+      row["TN90p"] = (cTn90 / vTn.length) * 100;
+      row["WSDI"] = wsdiCount;
+      row["CSDI"] = csdiCount;
+
+      let beg = 0, end = 0, cBeg = 0, cEnd = 0;
+      const tMeans = yR.map(d => (d.tx !== null && d.tn !== null) ? (d.tx + d.tn)/2 : null);
+      for (let s = 0; s < Math.floor(tMeans.length / 2); s++) {
+        if (tMeans[s] !== null && tMeans[s] > 5) cBeg++; else cBeg = 0;
+        if (cBeg >= 6) { beg = s - 5; break; }
+      }
+      for (let s = Math.floor(tMeans.length / 2); s < tMeans.length; s++) {
+        if (tMeans[s] !== null && tMeans[s] < 5) cEnd++; else cEnd = 0;
+        if (cEnd >= 6) { end = s - 5; break; }
+      }
+      row["GSL"] = (beg > 0 && end > beg) ? end - beg : 0;
+    } else {
+      ["DTR","SU35","FD0","TR20","ID0","TXx","TXn","TNx","TNn","TX10p","TX90p","TN10p","TN90p","WSDI","CSDI","GSL"].forEach(k => row[k] = null);
+    }
+
+    series.push(row);
+  }
+
+  return series;
+}
+
+// Función auxiliar para auto-centrar el mapa según las coordenadas cargadas
+function autoCenterMapToBounds() {
+  if (!mapInstance) return;
+  const validCoords = [];
+  Object.values(stationDataCollection).forEach(st => {
+    if (st.meta.lat !== null && st.meta.lon !== null && !isNaN(st.meta.lat) && !isNaN(st.meta.lon)) {
+      validCoords.push([st.meta.lat, st.meta.lon]);
+    }
+  });
+
+  if (validCoords.length > 0) {
+    const bounds = L.latLngBounds(validCoords);
+    mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+  }
+}
+
+async function executeBatchAnalysis() {
+  if (rawFiles.length === 0) {
+    alert("Por favor carga primero los archivos o la carpeta de estaciones.");
+    return;
+  }
+  clearLog();
+  log("Iniciando análisis y control de calidad...");
+
+  const params = {
+    bStart: parseInt(document.getElementById("baseStart").value),
+    bEnd: parseInt(document.getElementById("baseEnd").value),
+    rnn: parseFloat(document.getElementById("rnnThresh").value),
+    alpha: parseFloat(document.getElementById("sigAlpha").value),
+    minDays: parseInt(document.getElementById("minDays").value)
+  };
+
+  stationDataCollection = {};
+  trendResults = [];
+
+  for (let i = 0; i < rawFiles.length; i++) {
+    const file = rawFiles[i];
+    try {
+      const text = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = err => rej(err);
+        r.readAsText(file, "UTF-8");
+      });
+
+      const parsed = parseFile(text, file.name);
+      if (parsed.records.length === 0) continue;
+
+      const series = computeIndices(parsed.meta, parsed.records, params);
+      stationDataCollection[parsed.meta.clave] = { meta: parsed.meta, series };
+
+      const indices = Object.keys(series[0]).filter(k => k !== "year");
+      indices.forEach(idx => {
+        const validPairs = series.filter(d => d[idx] !== null).map(d => ({ x: d.year, y: d[idx] }));
+        if (validPairs.length >= 5) {
+          const xA = validPairs.map(p => p.x);
+          const yA = validPairs.map(p => p.y);
+          const tr = calculateLinearTrend(xA, yA);
+          if (tr) {
+            const isSig = tr.pValue < params.alpha;
+            let verd = "No Significativo";
+            if (isSig) verd = tr.slope > 0 ? "Aumento Significativo" : "Disminución Significativa";
+
+            trendResults.push({
+              clave: parsed.meta.clave,
+              estacion: parsed.meta.nombre,
+              lat: parsed.meta.lat,
+              lon: parsed.meta.lon,
+              indice: idx,
+              sYear: xA[0],
+              eYear: xA[xA.length - 1],
+              n: tr.n,
+              slope: tr.slope,
+              slopeDec: tr.slope * 10,
+              stdErr: tr.stdErr,
+              r2: tr.r2,
+              pValue: tr.pValue,
+              veredicto: verd,
+              isSig: isSig
+            });
+          }
+        }
+      });
+
+      log(`✓ [${parsed.meta.clave} - ${parsed.meta.nombre}]: Procesado (${series.length} años).`);
+    } catch (err) {
+      log(`Error en ${file.name}: ${err.message}`);
+    }
+  }
+
+  log(`\nProcesamiento concluido para ${Object.keys(stationDataCollection).length} estación(es).`);
+  document.getElementById("btnExportCSV").style.display = "inline-block";
+  document.getElementById("btnExportTrends").style.display = "inline-block";
+  document.getElementById("btnExportPDFCurrent").style.display = "inline-block";
+  document.getElementById("btnExportPDFAll").style.display = "inline-block";
+  document.getElementById("geoSection").style.display = "block";
+
+  populateMapControls();
+  renderTrendsTable();
+  initMap();
+  autoCenterMapToBounds();
+  updateMapDisplay();
+}
+
+function populateMapControls() {
+  const sel = document.getElementById("mapIndexSelect");
+  sel.innerHTML = "";
+  const uniqueIdx = [...new Set(trendResults.map(t => t.indice))];
+  uniqueIdx.forEach(id => {
+    const opt = document.createElement("option");
+    opt.value = id; opt.textContent = id;
+    sel.appendChild(opt);
+  });
+  if (uniqueIdx.includes("PRCPTOT")) sel.value = "PRCPTOT";
+}
+
+// Inicialización de Leaflet con capas ESRI Satelital y Google Hybrid
+function initMap() {
+  if (!mapInstance) {
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+    });
+
+    const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      attribution: '&copy; Google Maps'
+    });
+
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    });
+
+    mapInstance = L.map('map-container', {
+      center: [23.6345, -102.5528], // Centro aproximado de México como fallback inicial
+      zoom: 6,
+      layers: [googleHybrid]
+    });
+
+    const baseMaps = {
+      "Google Híbrido (Satelital + Etiquetas)": googleHybrid,
+      "Esri Satélite (World Imagery)": esriSatellite,
+      "OpenStreetMap (Calles)": osm
+    };
+
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(mapInstance);
+    markerLayerGroup = L.layerGroup().addTo(mapInstance);
+  }
+}
+
+function updateMapDisplay() {
+  if (!mapInstance) return;
+  markerLayerGroup.clearLayers();
+  if (heatLayer) { mapInstance.removeLayer(heatLayer); heatLayer = null; }
+
+  const currIdx = document.getElementById("mapIndexSelect").value;
+  const mode = document.getElementById("mapModeSelect").value;
+  const filtered = trendResults.filter(t => t.indice === currIdx && t.lat !== null && t.lon !== null);
+
+  if (filtered.length === 0) return;
+
+  // Centrado estricto sobre el bounding box de las estaciones del estado o región analizada
+  const latLngs = filtered.map(t => [t.lat, t.lon]);
+  const bounds = L.latLngBounds(latLngs);
+  mapInstance.fitBounds(bounds, { padding: [45, 45], maxZoom: 14 });
+
+  if (mode === "markers") {
+    filtered.forEach(item => {
+      let color = "#757575";
+      if (item.isSig) color = item.slope > 0 ? "#c62828" : "#0d47a1";
+
+      const circle = L.circleMarker([item.lat, item.lon], {
+        radius: item.isSig ? 9 : 6,
+        fillColor: color,
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.9
+      });
+
+      const badgeHtml = item.veredicto === "Aumento Significativo"
+        ? `<span class="badge badge-sig-up">▲ Aumento Significativo</span>`
+        : (item.veredicto === "Disminución Significativa"
+          ? `<span class="badge badge-sig-down">▼ Disminución Significativa</span>`
+          : `<span class="badge badge-nonsig">● No Significativo</span>`);
+
+      const popupContent = `
+        <div style="font-size:0.85rem; line-height:1.4;">
+          <b style="color:var(--primary); font-size:0.95rem;">${item.estacion} (${item.clave})</b><br>
+          <b>Índice:</b> ${item.indice} (${item.sYear} - ${item.eYear})<br>
+          <b>Pendiente (&beta;):</b> ${item.slope.toFixed(3)} / año (${item.slopeDec.toFixed(2)} / década)<br>
+          <b>R²:</b> ${(item.r2 * 100).toFixed(1)}% | <b>p-value:</b> ${item.pValue.toFixed(4)}<br>
+          <b>Veredicto:</b> ${badgeHtml}<br>
+          <button onclick="plotStationTrend('${item.clave}', '${item.indice}')" style="margin-top:6px; padding:4px 10px; font-size:0.8rem; background:var(--primary); color:#fff; border:none; border-radius:3px; cursor:pointer;">📈 Ver Curva Temporal</button>
+        </div>
+      `;
+      circle.bindPopup(popupContent);
+      markerLayerGroup.addLayer(circle);
+    });
+  } else if (mode.startsWith("heatmap")) {
+    const heatData = [];
+    filtered.forEach(item => {
+      let weight = 1.0;
+      if (mode === "heatmap_trend") {
+        weight = Math.abs(item.slope);
+      } else {
+        const st = stationDataCollection[item.clave];
+        if (st) {
+          const vals = st.series.map(s => s[currIdx]).filter(v => v !== null);
+          weight = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 1;
+        }
+      }
+      heatData.push([item.lat, item.lon, Math.abs(weight)]);
+    });
+
+    heatLayer = L.heatLayer(heatData, { radius: 28, blur: 18, maxZoom: 10 }).addTo(mapInstance);
+  }
+}
+
+function plotStationTrend(clave, idx) {
+  const st = stationDataCollection[clave];
+  if (!st) return;
+  const valid = st.series.filter(d => d[idx] !== null);
+  if (valid.length < 3) return;
+
+  const box = document.getElementById("chartBox");
+  box.style.display = "block";
+  box.scrollIntoView({ behavior: 'smooth' });
+
+  const tr = calculateLinearTrend(valid.map(d=>d.year), valid.map(d=>d[idx]));
+  const canvas = document.getElementById("trendCanvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.parentElement.clientWidth - 24;
+  canvas.height = 250;
+
+  document.getElementById("chartTitle").innerHTML = `
+    ${st.meta.nombre} (${clave}) — ${idx} &nbsp;|&nbsp;
+    Pendiente: <b>${tr.slope.toFixed(3)}</b> | R²: <b>${(tr.r2*100).toFixed(1)}%</b> | p-val: <b>${tr.pValue.toFixed(4)}</b>
+    <span class="badge ${tr.pValue < 0.05 ? (tr.slope > 0 ? 'badge-sig-up' : 'badge-sig-down') : 'badge-nonsig'}">${tr.pValue < 0.05 ? (tr.slope > 0 ? 'Aumento Sig.' : 'Disminución Sig.') : 'No Sig.'}</span>
+  `;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const padL = 50, padR = 20, padT = 30, padB = 40;
+  const w = canvas.width - padL - padR;
+  const h = canvas.height - padT - padB;
+
+  const xs = valid.map(d=>d.year);
+  const ys = valid.map(d=>d[idx]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const ySpan = (maxY - minY) || 1;
+
+  const toX = x => padL + ((x - minX) / (maxX - minX)) * w;
+  const toY = y => padT + h - ((y - minY) / ySpan) * h;
+
+  ctx.strokeStyle = "#dee2e6";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + h); ctx.lineTo(padL + w, padT + h);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#0d47a1";
+  ctx.fillStyle = "#1976d2";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  valid.forEach((pt, i) => {
+    const px = toX(pt.year), py = toY(pt[idx]);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  });
+  ctx.stroke();
+
+  valid.forEach(pt => {
+    const px = toX(pt.year), py = toY(pt[idx]);
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, 2*Math.PI); ctx.fill();
+  });
+
+  ctx.strokeStyle = tr.pValue < 0.05 ? (tr.slope > 0 ? "#c62828" : "#1565c0") : "#757575";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(toX(minX), toY(tr.intercept + tr.slope * minX));
+  ctx.lineTo(toX(maxX), toY(tr.intercept + tr.slope * maxX));
+  ctx.stroke();
+
+  ctx.fillStyle = "#666";
+  ctx.font = "11px sans-serif";
+  ctx.fillText(minX, padL, padT + h + 18);
+  ctx.fillText(maxX, padL + w - 30, padT + h + 18);
+  ctx.fillText(minY.toFixed(1), 10, padT + h);
+  ctx.fillText(maxY.toFixed(1), 10, padT + 12);
+}
+
+function renderTrendsTable() {
+  const tbody = document.getElementById("trendsTbody");
+  tbody.innerHTML = "";
+  trendResults.forEach(r => {
+    const tr = document.createElement("tr");
+    const badgeClass = r.veredicto === "Aumento Significativo" ? "badge-sig-up" : (r.veredicto === "Disminución Significativa" ? "badge-sig-down" : "badge-nonsig");
+    tr.innerHTML = `
+      <td><b>${r.clave}</b></td>
+      <td style="text-align:left;">${r.estacion}</td>
+      <td><b>${r.indice}</b></td>
+      <td>${r.sYear} - ${r.eYear}</td>
+      <td>${r.n}</td>
+      <td>${r.slope.toFixed(3)}</td>
+      <td>${r.slopeDec.toFixed(2)}</td>
+      <td>${r.stdErr.toFixed(3)}</td>
+      <td>${(r.r2 * 100).toFixed(1)}%</td>
+      <td><b>${r.pValue.toFixed(4)}</b></td>
+      <td><span class="badge ${badgeClass}">${r.veredicto}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportConsolidatedCSV() {
+  const rows = [];
+  Object.values(stationDataCollection).forEach(st => {
+    st.series.forEach(yrRow => {
+      rows.push({
+        Clave: st.meta.clave,
+        Estacion: st.meta.nombre,
+        Latitud: st.meta.lat || "",
+        Longitud: st.meta.lon || "",
+        Altitud: st.meta.alt || "",
+        Estado: st.meta.estado || "",
+        Municipio: st.meta.municipio || "",
+        ...yrRow
+      });
+    });
+  });
+  if (rows.length === 0) return;
+  const cols = Object.keys(rows[0]);
+  let csv = cols.join(",") + "\n";
+  rows.forEach(r => {
+    csv += cols.map(c => `"${r[c] !== null && r[c] !== undefined ? r[c] : 'NA'}"`).join(",") + "\n";
+  });
+  downloadBlob(csv, "indices_climaticos_consolidado_anual.csv");
+}
+
+function exportTrendsCSV() {
+  if (trendResults.length === 0) return;
+  const cols = ["Clave","Estacion","Latitud","Longitud","Indice","Año_Inicio","Año_Fin","N_Años","Pendiente_Anual","Cambio_Decadal","Error_Estandar","R2","Valor_p","Veredicto"];
+  let csv = cols.join(",") + "\n";
+  trendResults.forEach(r => {
+    csv += [
+      `"${r.clave}"`,`"${r.estacion}"`,r.lat || "",r.lon || "",`"${r.indice}"`,r.sYear,r.eYear,r.n,
+      r.slope.toFixed(4),r.slopeDec.toFixed(4),r.stdErr.toFixed(4),(r.r2).toFixed(4),r.pValue.toFixed(6),`"${r.veredicto}"`
+    ].join(",") + "\n";
+  });
+  downloadBlob(csv, "resumen_tendencias_significancia.csv");
+}
+
+function downloadBlob(content, filename) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/* ========================================================
+   FUNCIÓN DE GENERACIÓN DE INFORMES EN FORMATO PDF
+   ======================================================== */
+async function captureMapImage() {
+  const mapElement = document.getElementById("map-container");
+  try {
+    const canvas = await html2canvas(mapElement, {
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      scale: 1.5
+    });
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } catch (err) {
+    console.warn("No se pudo capturar el canvas del mapa con html2canvas, usando fallback:", err);
+    return null;
+  }
+}
+
+async function exportPDFReport(allIndices = false) {
+  if (trendResults.length === 0) {
+    alert("No hay resultados calculados para generar el informe.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("portrait", "mm", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+
+  const currentSelectedIdx = document.getElementById("mapIndexSelect").value;
+  const uniqueIndices = allIndices 
+    ? [...new Set(trendResults.map(t => t.indice))] 
+    : [currentSelectedIdx];
+
+  const originalIdx = document.getElementById("mapIndexSelect").value;
+  log(`\nGenerando informe PDF para ${uniqueIndices.length} índice(s)...`);
+
+  for (let idxCount = 0; idxCount < uniqueIndices.length; idxCount++) {
+    const idx = uniqueIndices[idxCount];
+    if (idxCount > 0) doc.addPage();
+
+    // Sincronizar mapa con el índice y auto-centrar a las estaciones del estado
+    document.getElementById("mapIndexSelect").value = idx;
+    updateMapDisplay();
+    await new Promise(r => setTimeout(r, 650));
+    const mapImgData = await captureMapImage();
+
+    // Resumen estadístico del índice
+    const items = trendResults.filter(t => t.indice === idx);
+    const nTotal = items.length;
+    const nSigUp = items.filter(t => t.isSig && t.slope > 0).length;
+    const nSigDown = items.filter(t => t.isSig && t.slope < 0).length;
+    const nNonSig = items.filter(t => !t.isSig).length;
+    const avgDec = nTotal > 0 ? (items.reduce((acc, c) => acc + c.slopeDec, 0) / nTotal).toFixed(2) : "0.00";
+
+    // Encabezado
+    doc.setFillColor(13, 71, 161);
+    doc.rect(0, 0, pageWidth, 20, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text("INFORME DE ANÁLISIS CLIMÁTICO Y TENDENCIAS ESPACIALES", margin, 13);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.text(`RClimDex GeoAnalytics | Fecha: ${new Date().toLocaleDateString("es-MX")}`, pageWidth - margin, 13, { align: "right" });
+
+    // Subtítulo e Índice
+    let curY = 27;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(13, 71, 161);
+    doc.text(`Índice Analizado: ${idx}`, margin, curY);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    const desc = idx === "SU35" 
+      ? "Días muy calurosos con Temperatura Máxima > 35°C (Frecuencia anual y tendencia de cambio)"
+      : "Evaluación multianual con estimación de tendencias por Mínimos Cuadrados Ordinarios";
+    doc.text(desc, margin, curY + 5);
+
+    curY += 10;
+
+    // Tarjetas de Resumen
+    const cardW = (pageWidth - (margin * 2) - 9) / 4;
+    const cardH = 14;
+
+    const summaryCards = [
+      { label: "Estaciones", val: `${nTotal}`, col: [230, 235, 245], textCol: [13, 71, 161] },
+      { label: "Aumento Sig. (▲)", val: `${nSigUp}`, col: [255, 235, 238], textCol: [198, 40, 40] },
+      { label: "Disminución Sig. (▼)", val: `${nSigDown}`, col: [227, 242, 253], textCol: [13, 71, 161] },
+      { label: "Prom. Cambio / Déc.", val: `${avgDec}`, col: [245, 245, 245], textCol: [60, 60, 60] }
+    ];
+
+    summaryCards.forEach((c, i) => {
+      const cx = margin + i * (cardW + 3);
+      doc.setFillColor(c.col[0], c.col[1], c.col[2]);
+      doc.roundedRect(cx, curY, cardW, cardH, 2, 2, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text(c.label, cx + 3, curY + 5);
+
+      doc.setFontSize(10.5);
+      doc.setTextColor(c.textCol[0], c.textCol[1], c.textCol[2]);
+      doc.text(c.val, cx + 3, curY + 11);
+    });
+
+    curY += cardH + 7;
+
+    // Inserción del Mapa Espacial
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(33, 37, 41);
+    doc.text("Distribución Espacial de Estaciones y Comportamiento de Tendencia", margin, curY);
+    curY += 3;
+
+    if (mapImgData) {
+      const mapImgHeight = 85;
+      const mapImgWidth = pageWidth - (margin * 2);
+      doc.addImage(mapImgData, "JPEG", margin, curY, mapImgWidth, mapImgHeight);
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(margin, curY, mapImgWidth, mapImgHeight);
+      curY += mapImgHeight + 6;
+    } else {
+      curY += 8;
+    }
+
+    // Tabla Resumen de Estaciones para este Índice
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(33, 37, 41);
+    doc.text(`Detalle Estadístico por Estación (${idx})`, margin, curY);
+    curY += 4;
+
+    const colWidths = [18, 52, 19, 14, 21, 18, 16, 24];
+    const headers = ["Clave", "Estación", "Periodo", "N(Años)", "Pendiente", "R²", "p-val", "Veredicto"];
+
+    doc.setFillColor(240, 243, 246);
+    doc.rect(margin, curY, pageWidth - (margin * 2), 6, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(33, 37, 41);
+
+    let hX = margin;
+    headers.forEach((h, i) => {
+      doc.text(h, hX + 1.5, curY + 4.2);
+      hX += colWidths[i];
+    });
+
+    curY += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.8);
+
+    items.forEach((item, rIdx) => {
+      if (curY > pageHeight - 16) {
+        doc.addPage();
+        curY = 16;
+        doc.setFillColor(240, 243, 246);
+        doc.rect(margin, curY, pageWidth - (margin * 2), 6, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        let rhX = margin;
+        headers.forEach((h, i) => {
+          doc.text(h, rhX + 1.5, curY + 4.2);
+          rhX += colWidths[i];
+        });
+        curY += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.8);
+      }
+
+      if (rIdx % 2 === 1) {
+        doc.setFillColor(250, 250, 250);
+        doc.rect(margin, curY, pageWidth - (margin * 2), 5, "F");
+      }
+
+      let rX = margin;
+      const vals = [
+        String(item.clave),
+        String(item.estacion).substring(0, 28),
+        `${item.sYear}-${item.eYear}`,
+        String(item.n),
+        `${item.slope.toFixed(3)}/a`,
+        `${(item.r2 * 100).toFixed(1)}%`,
+        item.pValue.toFixed(4),
+        item.veredicto
+      ];
+
+      vals.forEach((v, i) => {
+        if (i === 7) {
+          if (item.veredicto === "Aumento Significativo") doc.setTextColor(198, 40, 40);
+          else if (item.veredicto === "Disminución Significativa") doc.setTextColor(13, 71, 161);
+          else doc.setTextColor(117, 117, 117);
+        } else {
+          doc.setTextColor(33, 37, 41);
+        }
+        doc.text(v, rX + 1.5, curY + 3.6);
+        rX += colWidths[i];
+      });
+
+      curY += 5;
+    });
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Página ${idxCount + 1} de ${uniqueIndices.length} - Reporte RClimDex GeoAnalytics`, pageWidth / 2, pageHeight - 6, { align: "center" });
+  }
+
+  document.getElementById("mapIndexSelect").value = originalIdx;
+  updateMapDisplay();
+
+  const outName = allIndices 
+    ? `Informe_Climatico_Consolidado_Todos_Indices.pdf` 
+    : `Informe_Climatico_${currentSelectedIdx}.pdf`;
+
+  doc.save(outName);
+  log(`✓ Informe PDF generado exitosamente: ${outName}`);
+}
+</script>
+
+</body>
+</html>
