@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Predios Agrícolas con Clima</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { margin: 0; padding: 20px; background: #f0f4f8; display: flex; flex-direction: column; align-items: center; }
+        .container { max-width: 1400px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 20px; }
+        #map { height: 520px; border-radius: 16px; border: 2px solid #cbd5e1; background: #e9edf2; position: relative; }
+        .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 12px; align-items: center; }
+        .btn { background: #1e3a5f; color: white; border: none; padding: 8px 18px; border-radius: 40px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .btn:hover { background: #0f2a44; transform: scale(1.02); }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+        .btn-success { background: #2b6f3b; } .btn-success:hover { background: #1e552b; }
+        .btn-danger { background: #b33c3c; } .btn-danger:hover { background: #8f2a2a; }
+        .btn-warning { background: #d48c2b; } .btn-warning:hover { background: #b3741f; }
+        .btn-purple { background: #6b3fa0; } .btn-purple:hover { background: #552b80; }
+        .btn-teal { background: #1f7a7a; } .btn-teal:hover { background: #166060; }
+        .btn-recover { background: #0d8a7a; } .btn-recover:hover { background: #0a6b5e; }
+        .btn-logout { background: #7a3d0d; } .btn-logout:hover { background: #5a2d0a; }
+        .btn-weather { background: #1a7a8a; } .btn-weather:hover { background: #0f5f6b; }
+        .btn-admin { background: #8e44ad; } .btn-admin:hover { background: #6c3483; }
+        .btn-token { background: #0d8a7a; } .btn-token:hover { background: #0a6b5e; }
+        .export-group { margin-left: auto; display: flex; gap: 8px; }
+        .predios-list { margin-top: 20px; background: #f8fafc; border-radius: 16px; padding: 10px 0 5px 0; max-height: 320px; overflow-y: auto; border: 1px solid #dde3ea; }
+        .predio-item { display: grid; grid-template-columns: 75px 95px 95px 105px 75px 105px 115px 65px 50px 115px; gap: 4px; align-items: center; padding: 5px 10px; border-bottom: 1px solid #e4e9f0; font-size: 0.78rem; background: white; transition: background 0.2s; }
+        .predio-item:hover { background: #f1f5f9; }
+        .predio-item.editing { background: #fef9e7; border-left: 4px solid #d48c2b; }
+        .predio-item input, .predio-item select { border: 1px solid #ccd7e6; border-radius: 6px; padding: 2px 6px; font-size: 0.72rem; background: #f8fafc; width: 100%; }
+        .predio-item input:disabled, .predio-item select:disabled { background: #f1f3f5; color: #1e293b; cursor: default; border-color: #e2e8f0; }
+        .predio-item input:not(:disabled), .predio-item select:not(:disabled) { background: white; border-color: #d48c2b; }
+        .header-list { font-weight: 700; background: #e2e8f0; color: #1e293b; border-radius: 12px 12px 0 0; padding: 6px 10px; display: grid; grid-template-columns: 75px 95px 95px 105px 75px 105px 115px 65px 50px 115px; gap: 4px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 5; }
+        .icon-btn { background: none; border: none; cursor: pointer; font-size: 0.95rem; padding: 1px 3px; border-radius: 4px; transition: 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+        .icon-btn:hover { background: rgba(0,0,0,0.08); }
+        .icon-btn.delete:hover { color: #b33c3c; background: rgba(179,60,60,0.12); }
+        .icon-btn.edit:hover { color: #d48c2b; background: rgba(212,140,43,0.12); }
+        .icon-btn.zoom:hover { color: #2b6f3b; background: rgba(43,111,59,0.12); }
+        .icon-btn.export-kml:hover { color: #6b3fa0; background: rgba(107,63,160,0.12); }
+        .icon-btn.save-edit:hover { color: #2b6f3b; background: rgba(43,111,59,0.12); }
+        .icon-btn.cancel-edit:hover { color: #b33c3c; background: rgba(179,60,60,0.12); }
+        .icon-btn.weather:hover { color: #1a7a8a; background: rgba(26,122,138,0.12); }
+        .acciones-container { display: flex; gap: 1px; align-items: center; flex-wrap: nowrap; }
+        .acciones-container .icon-btn { font-size: 0.9rem; padding: 1px 2px; }
+        .empty-message { padding: 20px; text-align: center; color: #6b7b8d; font-style: italic; }
+        .popup-field { margin-bottom: 8px; display: flex; align-items: center; }
+        .popup-field label { font-weight: 600; width: 110px; flex-shrink: 0; }
+        .popup-field input, .popup-field select { width: 180px; padding: 4px 8px; border-radius: 8px; border: 1px solid #bcc9db; }
+        .leaflet-popup-content { min-width: 340px; }
+        .btn-sm { padding: 4px 14px; font-size: 0.8rem; border-radius: 30px; }
+        .badge { background: #1e3a5f; color: white; border-radius: 40px; padding: 2px 14px; font-size: 0.8rem; }
+        .badge-save { background: #2b6f3b; }
+        .badge-recover { background: #0d8a7a; cursor: pointer; } .badge-recover:hover { background: #0a6b5e; }
+        .badge-user { background: #6b3fa0; font-size: 0.7rem; }
+        .badge-business { background: #1f7a7a; font-size: 0.7rem; }
+        .badge-weather { background: #1a7a8a; font-size: 0.7rem; }
+        .badge-perfil { background: #6b9e3f; font-size: 0.7rem; }
+        .badge-superficie { background: #1e3a5f; font-size: 0.7rem; cursor: pointer; transition: 0.2s; }
+        .badge-superficie:hover { transform: scale(1.05); }
+        .badge-conectado { background: #0d8a7a; font-size: 0.7rem; }
+        .badge-desconectado { background: #94a3b8; font-size: 0.7rem; }
+        .custom-layer-control { position: absolute; top: 10px; right: 10px; background: white; padding: 6px 10px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; display: flex; gap: 6px; flex-wrap: wrap; }
+        .custom-layer-control button { background: #e9edf2; border: 1px solid #b0c0d0; border-radius: 20px; padding: 4px 14px; font-size: 0.75rem; cursor: pointer; transition: 0.1s; }
+        .custom-layer-control button.active { background: #1e3a5f; color: white; border-color: #1e3a5f; }
+        .custom-layer-control button:hover { opacity: 0.8; }
+        .tile-status { font-size: 0.75rem; color: #475569; background: #eef2f7; padding: 4px 12px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; }
+        .tile-status .count { font-weight: 700; color: #1e3a5f; }
+        .file-input-hidden { display: none; }
+        .save-indicator { font-size: 0.7rem; color: #2b6f3b; background: #e6f7e6; padding: 2px 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity 0.3s ease; }
+        .save-indicator.visible { opacity: 1; }
+        .predio-highlight { background: #dbeafe !important; border-left: 4px solid #1e3a5f; }
+        .superficie-bar-container { margin: 8px 0; padding: 8px 14px; background: #f8fafc; border-radius: 12px; border: 1px solid #dde3ea; display: flex; align-items: center; gap: 12px; font-size: 0.75rem; }
+        .superficie-bar-label { font-weight: 600; color: #1e293b; white-space: nowrap; }
+        .superficie-bar-track { flex: 1; height: 14px; background: #e2e8f0; border-radius: 8px; overflow: hidden; position: relative; min-width: 120px; }
+        .superficie-bar-fill { height: 100%; background: linear-gradient(90deg, #2b6f3b, #4caf50); border-radius: 8px; transition: width 0.4s ease, background 0.3s ease; }
+        .superficie-bar-fill.warning { background: linear-gradient(90deg, #d48c2b, #f1c40f); }
+        .superficie-bar-fill.danger { background: linear-gradient(90deg, #b33c3c, #e74c3c); }
+        .superficie-bar-text { font-weight: 600; color: #1e3a5f; white-space: nowrap; }
+        .weather-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .weather-modal.active { display: flex; }
+        .weather-modal-content { background: white; border-radius: 16px; padding: 20px 24px; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.3); position: relative; }
+        .weather-modal-content .close-btn { position: absolute; top: 10px; right: 16px; font-size: 1.5rem; cursor: pointer; color: #4c6a83; background: none; border: none; transition: 0.2s; }
+        .weather-modal-content .close-btn:hover { color: #1f3b58; transform: rotate(90deg); }
+        .weather-modal-content h3 { color: #1a3a5c; margin-bottom: 12px; font-weight: 500; text-align: center; }
+        .semaphore { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin: 0 1px; vertical-align: middle; }
+        .semaphore-green { background: #2ecc71; } .semaphore-yellow { background: #f1c40f; } .semaphore-red { background: #e74c3c; } .semaphore-gray { background: #95a5a6; }
+        .status-badge { padding: 1px 8px; border-radius: 16px; font-size: 0.65rem; font-weight: 600; display: inline-block; }
+        .status-green { background: #d5f5e3; color: #1a7a42; }
+        .status-yellow { background: #fdebd0; color: #a04000; }
+        .status-red { background: #fadbd8; color: #922b21; }
+        .status-gray { background: #e8e8e8; color: #5d6d7e; }
+        .weather-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px; margin-top: 8px; }
+        .weather-item { background: #f5f9ff; border-radius: 4px; padding: 4px 6px; text-align: center; border: 1px solid #e2e8f0; font-size: 0.6rem; }
+        .weather-item .fecha { font-weight: 600; font-size: 0.6rem; color: #1f3b58; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; margin-bottom: 2px; }
+        .weather-item .fila { display: flex; align-items: center; justify-content: space-between; padding: 1px 2px; gap: 2px; }
+        .weather-item .fila .etq { color: #4c6a83; font-size: 0.5rem; font-weight: 600; min-width: 18px; text-align: left; }
+        .weather-item .fila .val { display: flex; gap: 2px; align-items: center; }
+        .weather-item .semaphore { width: 10px; height: 10px; margin: 0; flex-shrink: 0; }
+        .weather-item .fila .val-text { font-size: 0.5rem; color: #1f3b58; font-weight: 500; }
+        .weather-item .fila-temp { display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 0.5rem; color: #4c6a83; }
+        .weather-legend { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; font-size: 0.6rem; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+        .weather-legend .item { display: flex; align-items: center; gap: 3px; }
+        .weather-legend .semaphore { width: 10px; height: 10px; }
+        .chart-container { position: relative; height: 250px; margin-top: 10px; }
+        .chart-legend-custom { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; font-size: 0.7rem; }
+        .chart-legend-custom span { display: flex; align-items: center; gap: 5px; }
+        .chart-legend-custom .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .weather-current { background: #f5f9ff; border-radius: 8px; padding: 10px 14px; margin: 8px 0 12px 0; border-left: 4px solid #1a7a8a; font-size: 0.8rem; }
+        .weather-current p { margin: 2px 0; }
+        .historical-table-wrapper { overflow-x: auto; max-height: 250px; overflow-y: auto; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 8px; }
+        .historical-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; min-width: 650px; }
+        .historical-table th { background: #1f3b58; color: white; padding: 4px 5px; text-align: center; position: sticky; top: 0; z-index: 10; font-weight: 500; white-space: nowrap; font-size: 0.6rem; }
+        .historical-table td { padding: 4px 4px; text-align: center; border-bottom: 1px solid #e2e8f0; white-space: nowrap; font-size: 0.65rem; }
+        .historical-table tr:hover td { background: #f7fafc; }
+        .weather-modal-tabs { display: flex; gap: 8px; margin: 8px 0 4px 0; flex-wrap: wrap; }
+        .weather-modal-tabs button { padding: 4px 16px; border-radius: 20px; border: 1px solid #bcccdb; background: white; font-size: 0.75rem; cursor: pointer; transition: 0.2s; font-weight: 500; }
+        .weather-modal-tabs button:hover { background: #e8edf5; }
+        .weather-modal-tabs button.active { background: #1a7a8a; color: white; border-color: #1a7a8a; }
+        .weather-tab-content { display: none; } .weather-tab-content.active { display: block; }
+        .precip-info { font-size: 0.65rem; color: #4c6a83; margin-top: 4px; text-align: center; }
+        .historical-status-legend { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; font-size: 0.6rem; margin: 6px 0; }
+        .historical-status-legend .item { display: flex; align-items: center; gap: 3px; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(8px); padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; border-radius: 16px; border: 2px solid #1e3a5f; max-width: 480px; width: 100%; padding: 30px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto; }
+        .modal-box .modal-header { text-align: center; margin-bottom: 20px; }
+        .modal-box .modal-header h2 { color: #1e3a5f; font-size: 1.5rem; margin: 0; }
+        .modal-box .modal-header p { color: #6b7b8d; font-size: 0.9rem; margin: 4px 0 0 0; }
+        .modal-box .form-group { margin-bottom: 14px; }
+        .modal-box .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+        .modal-box .form-group input, .modal-box .form-group select { width: 100%; padding: 8px 12px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; color: #1e293b; font-size: 0.95rem; transition: all 0.2s; }
+        .modal-box .form-group input:focus, .modal-box .form-group select:focus { outline: none; border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); }
+        .modal-box .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+        .modal-box .form-actions button { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; flex: 1; min-width: 100px; }
+        .modal-box .form-actions button.primary { background: #1e3a5f; color: white; }
+        .modal-box .form-actions button.primary:hover { background: #0f2a44; }
+        .modal-box .form-actions button.success { background: #2b6f3b; color: white; }
+        .modal-box .form-actions button.success:hover { background: #1e552b; }
+        .modal-box .form-actions button.danger { background: #b33c3c; color: white; }
+        .modal-box .form-actions button.danger:hover { background: #8f2a2a; }
+        .modal-box .form-error { color: #b33c3c; font-size: 0.85rem; margin-top: 8px; text-align: center; display: none; }
+        .modal-box .form-error.show { display: block; }
+        .modal-box .form-success { color: #2b6f3b; font-size: 0.85rem; margin-top: 8px; text-align: center; display: none; }
+        .modal-box .form-success.show { display: block; }
+        .modal-box .form-hint { font-size: 0.75rem; color: #6b7b8d; margin-top: 4px; }
+        .admin-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(6px); padding: 20px; }
+        .admin-modal.active { display: flex; }
+        .admin-content { background: white; border-radius: 16px; padding: 24px; max-width: 1300px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); position: relative; border: 2px solid #6b3fa0; }
+        .admin-content h2 { color: #6b3fa0; margin: 0 0 6px 0; font-size: 1.4rem; display: flex; align-items: center; gap: 8px; }
+        .admin-content .admin-sub { color: #6b7b8d; font-size: 0.85rem; margin-bottom: 16px; }
+        .admin-content .close-btn { position: absolute; top: 12px; right: 16px; font-size: 1.5rem; cursor: pointer; color: #4c6a83; background: none; border: none; transition: 0.2s; }
+        .admin-content .close-btn:hover { color: #1f3b58; transform: rotate(90deg); }
+        .admin-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; }
+        .admin-tabs button { background: none; border: none; padding: 10px 18px; font-size: 0.85rem; font-weight: 600; color: #6b7b8d; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; margin-bottom: -2px; }
+        .admin-tabs button:hover { color: #1e293b; }
+        .admin-tabs button.active { color: #6b3fa0; border-bottom-color: #6b3fa0; }
+        .admin-tab-content { display: none; } .admin-tab-content.active { display: block; }
+        .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
+        .admin-stat-card { background: linear-gradient(135deg, #f8fafc, #eef2f7); border: 1px solid #dde3ea; border-radius: 12px; padding: 12px 16px; border-left: 4px solid #6b3fa0; }
+        .admin-stat-card .label { font-size: 0.7rem; color: #6b7b8d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .admin-stat-card .value { font-size: 1.3rem; font-weight: 700; color: #1e293b; margin-top: 2px; }
+        .admin-form-box { background: #f8fafc; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; border: 1px solid #dde3ea; }
+        .admin-form-box h4 { margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; }
+        .admin-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+        .admin-form-grid input, .admin-form-grid select { padding: 6px 10px; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 0.85rem; background: white; }
+        .admin-form-grid label { font-size: 0.75rem; font-weight: 600; color: #1e293b; display: block; margin-bottom: 3px; }
+        .admin-table-wrapper { overflow-x: auto; border-radius: 12px; border: 1px solid #dde3ea; max-height: 500px; overflow-y: auto; }
+        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 1100px; }
+        .admin-table th { background: #6b3fa0; color: white; padding: 8px 10px; text-align: left; position: sticky; top: 0; z-index: 5; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; }
+        .admin-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .admin-table tr:hover td { background: #f8fafc; }
+        .admin-actions-cell { display: flex; gap: 6px; flex-wrap: nowrap; }
+        .admin-actions-cell button { border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 3px; }
+        .admin-btn-edit { background: #d48c2b; color: white; } .admin-btn-edit:hover { background: #b3741f; }
+        .admin-btn-delete { background: #b33c3c; color: white; } .admin-btn-delete:hover { background: #8f2a2a; }
+        .badge-rol { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .rol-admin { background: #6b3fa0; color: white; }
+        .rol-editor { background: #1e6fb8; color: white; }
+        .rol-visualizador { background: #2b6f3b; color: white; }
+        .perfil-badge-cell { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; color: white; }
+        .permiso-tag { display: inline-block; padding: 1px 8px; border-radius: 12px; font-size: 0.65rem; font-weight: 600; margin: 1px; }
+        .permiso-on { background: #d5f5e3; color: #1a7a42; }
+        .permiso-off { background: #f1f3f5; color: #94a3b8; }
+        .admin-config-box { background: #f8fafc; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; border: 1px solid #dde3ea; }
+        .admin-config-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+        .admin-config-row label { font-weight: 600; font-size: 0.8rem; color: #1e293b; }
+        .admin-config-row input { padding: 6px 10px; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 0.85rem; width: 120px; }
+        .admin-config-row input[type="password"] { width: 300px; font-family: monospace; }
+        .token-status-box { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; }
+        .token-status-conectado { background: #d5f5e3; color: #1a7a42; border: 1px solid #2b6f3b; }
+        .token-status-desconectado { background: #f1f3f5; color: #94a3b8; border: 1px solid #cbd5e1; }
+        @media (max-width: 900px) {
+            .predio-item, .header-list { grid-template-columns: 55px 65px 65px 75px 55px 75px 85px 45px 35px 80px; font-size: 0.6rem; gap: 2px; padding: 3px 6px; }
+            .predio-item input, .predio-item select { font-size: 0.6rem; padding: 1px 3px; }
+            .icon-btn { font-size: 0.75rem; padding: 1px 2px; }
+            .acciones-container .icon-btn { font-size: 0.75rem; }
+            .modal-box { padding: 20px 16px; max-width: 95%; }
+            .weather-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+            .historical-table { font-size: 0.6rem; min-width: 550px; }
+            .admin-content { padding: 16px; }
+        }
+        @media (max-width: 600px) {
+            .toolbar .btn { padding: 4px 8px; font-size: 0.65rem; }
+            .predio-item, .header-list { grid-template-columns: 40px 50px 50px 60px 40px 60px 65px 35px 30px 60px; font-size: 0.5rem; }
+            .icon-btn { font-size: 0.65rem; }
+            .modal-box .form-actions button { font-size: 0.8rem; padding: 6px 12px; min-width: 70px; }
+            .weather-grid { grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); }
+            .historical-table { font-size: 0.5rem; min-width: 450px; }
+            .superficie-bar-container { flex-direction: column; gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal-overlay active" id="loginModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2>🌾 Registro de Predios</h2>
+            <p>Inicia sesión con tus credenciales</p>
+        </div>
+        <div class="form-group">
+            <label>👤 Usuario</label>
+            <input type="text" id="loginUser" placeholder="Ej. admin" autocomplete="username" />
+        </div>
+        <div class="form-group">
+            <label>🔑 Contraseña</label>
+            <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="form-group" id="grupoToken">
+            <label>🔑 Token de GitHub <span style="font-weight:normal;color:#6b7b8d;">(solo si necesitas editar)</span></label>
+            <input type="password" id="loginToken" placeholder="ghp_..." autocomplete="off" />
+            <p class="form-hint">El Admin General puede configurarlo. Los demás usuarios solo lo pegan una vez para habilitar edición.</p>
+        </div>
+        <div class="form-error" id="loginError">⚠️ Usuario o contraseña incorrectos</div>
+        <div class="form-actions">
+            <button class="primary" id="loginBtn">🚀 Iniciar Sesión</button>
+        </div>
+        <div style="text-align:center; margin-top:18px; padding-top:14px; border-top:1px solid #e2e8f0;">
+            <button class="btn btn-admin" id="openAdminBtn" style="font-size:0.8rem; padding:6px 20px;">
+                🔐 Panel Administrador
+            </button>
+        </div>
+        <div style="text-align:center; margin-top:8px; font-size:0.7rem; color:#94a3b8;">
+            v8.1 — GitHub + PBKDF2 + Token compartido
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="adminLoginModal">
+    <div class="modal-box" style="border-color:#6b3fa0; max-width:400px;">
+        <div class="modal-header">
+            <h2 style="color:#6b3fa0;">🔐 Panel de Administración</h2>
+            <p>Ingresa las credenciales de administrador</p>
+        </div>
+        <div class="form-group">
+            <label>👤 Usuario Administrador</label>
+            <input type="text" id="adminUserInput" placeholder="Usuario admin" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label>🔑 Contraseña</label>
+            <input type="password" id="adminPassInput" placeholder="Contraseña" autocomplete="off" />
+        </div>
+        <div class="form-error" id="adminLoginError">⚠️ Credenciales incorrectas</div>
+        <div class="form-actions">
+            <button class="primary" id="adminLoginCancel" style="background:#8b9bb0;">Cancelar</button>
+            <button class="primary" id="adminLoginSubmit" style="background:#6b3fa0;">🔓 Entrar</button>
+        </div>
+    </div>
+</div>
+
+<div class="admin-modal" id="adminPanelModal">
+    <div class="admin-content">
+        <button class="close-btn" id="adminPanelClose">&times;</button>
+        <h2>🔐 Panel de Administración</h2>
+        <div class="admin-sub">Gestiona usuarios, empresas, token y configuración global</div>
+
+        <div class="admin-tabs">
+            <button class="active" data-admin-tab="usuarios">👥 Usuarios</button>
+            <button data-admin-tab="empresas">🏢 Empresas</button>
+            <button data-admin-tab="token">🔑 Token GitHub</button>
+            <button data-admin-tab="global">⚙️ Configuración Global</button>
+        </div>
+
+        <div class="admin-tab-content active" id="adminTab-usuarios">
+            <div class="admin-stats" id="adminStats"></div>
+
+            <div class="admin-form-box" id="adminFormCrearUsuario">
+                <h4>➕ Crear Nuevo Usuario</h4>
+                <div class="admin-form-grid">
+                    <div><label>Nombre completo</label><input type="text" id="adminNewNombre" placeholder="Nombre completo" /></div>
+                    <div><label>Usuario (login)</label><input type="text" id="adminNewUsuario" placeholder="usuario" /></div>
+                    <div><label>Contraseña</label><input type="password" id="adminNewPass" placeholder="mín. 8" /></div>
+                    <div><label>Tipo de usuario (Rol)</label>
+                        <select id="adminNewRol">
+                            <option value="visualizador">Visualizador</option>
+                            <option value="editor">Editor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div><label>Perfil (permisos)</label>
+                        <select id="adminNewPerfil">
+                            <option value="basico">🌱 Básico — 50 ha (5 ha/predio)</option>
+                            <option value="profesional">🌾 Profesional — 1,000 ha (25 ha/predio)</option>
+                            <option value="empresarial">🏢 Empresarial — 10,000 ha (200 ha/predio)</option>
+                            <option value="ilimitado">⭐ Ilimitado</option>
+                        </select>
+                    </div>
+                    <div><label>Área</label><input type="text" id="adminNewArea" placeholder="Agricola" value="Agricola" /></div>
+                    <div><label>Empresa</label>
+                        <select id="adminNewEmpresa">
+                            <option value="">-- Sin empresa --</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex; gap:16px; margin-top:10px; flex-wrap:wrap;">
+                    <label style="font-size:0.8rem;"><input type="checkbox" id="adminNewVerTodas" /> 👁️ Ver todas las áreas</label>
+                    <label style="font-size:0.8rem;"><input type="checkbox" id="adminNewAsignarCualquier" /> ✏️ Crear predios en cualquier área</label>
+                    <label style="font-size:0.8rem;"><input type="checkbox" id="adminNewVerPronostico" checked /> 🌤️ Ver pronóstico</label>
+                    <label style="font-size:0.8rem;"><input type="checkbox" id="adminNewEsAdminEmpresa" /> 🏢 Admin de esta empresa</label>
+                </div>
+                <button class="btn btn-success" id="adminCreateUser" style="margin-top:10px; padding:6px 16px; font-size:0.8rem;">➕ Crear Usuario</button>
+            </div>
+
+            <div class="admin-table-wrapper">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th><th>Nombre</th><th>Tipo (Rol)</th><th>Perfil</th>
+                            <th>Empresa</th><th>Área</th><th>Permisos</th><th>Predios</th><th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUsersTableBody">
+                        <tr><td colspan="9" style="text-align:center;padding:20px;color:#7f8c8d;">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="admin-tab-content" id="adminTab-empresas">
+            <div class="admin-form-box">
+                <h4>➕ Registrar Nueva Empresa</h4>
+                <div class="admin-form-grid">
+                    <div><label>Nombre de la empresa</label><input type="text" id="adminNewEmpresaNombre" placeholder="Ej. Agroindustrias del Sur" /></div>
+                    <div><label>RFC / ID</label><input type="text" id="adminNewEmpresaRFC" placeholder="Opcional" /></div>
+                    <div><label>Email de contacto</label><input type="email" id="adminNewEmpresaEmail" placeholder="contacto@empresa.com" /></div>
+                    <div><label>Perfil por defecto</label>
+                        <select id="adminNewEmpresaPerfil">
+                            <option value="basico">🌱 Básico</option>
+                            <option value="profesional">🌾 Profesional</option>
+                            <option value="empresarial">🏢 Empresarial</option>
+                            <option value="ilimitado">⭐ Ilimitado</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-success" id="adminCreateEmpresa" style="margin-top:10px; padding:6px 16px; font-size:0.8rem;">➕ Registrar Empresa</button>
+            </div>
+
+            <div class="admin-table-wrapper">
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>Empresa</th><th>RFC</th><th>Email</th><th>Perfil</th><th>Usuarios</th><th>Predios</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="adminEmpresasTableBody">
+                        <tr><td colspan="7" style="text-align:center;padding:20px;color:#7f8c8d;">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="admin-tab-content" id="adminTab-token">
+            <div class="admin-form-box">
+                <h4>🔑 Token de GitHub</h4>
+                <p style="font-size:0.8rem;color:#6b7b8d;margin:0 0 10px 0;">
+                    El token se usa para guardar cambios en el repositorio. Solo el Admin General lo ve y lo puede cambiar.
+                    Los demás usuarios solo ven un indicador de "Conectado".
+                </p>
+                <div class="token-status-box" id="tokenStatusBox">
+                    <span>⚠️ Sin token configurado</span>
+                </div>
+                <div class="admin-config-row" style="margin-top:10px;">
+                    <input type="password" id="adminTokenInput" placeholder="ghp_..." />
+                    <button class="btn btn-success" id="adminSaveToken" style="padding:6px 16px; font-size:0.8rem;">💾 Guardar</button>
+                    <button class="btn btn-danger" id="adminDeleteToken" style="padding:6px 16px; font-size:0.8rem;">🗑️ Borrar</button>
+                </div>
+                <p class="form-hint" style="font-size:0.75rem;color:#6b7b8d;margin-top:6px;">
+                    Genera uno en <a href="https://github.com/settings/tokens" target="_blank" style="color:#2563eb;">github.com/settings/tokens</a> con permiso <code>repo</code>.
+                    El token se guarda en <strong>sessionStorage</strong> (se borra al cerrar la pestaña).
+                </p>
+            </div>
+        </div>
+
+        <div class="admin-tab-content" id="adminTab-global">
+            <div class="admin-config-box">
+                <h4>⚙️ Configuración Global del Equipo</h4>
+                <div class="admin-config-row">
+                    <label>Límite global del equipo (ha):</label>
+                    <input type="number" id="adminLimiteGlobal" min="1" step="1" value="50" />
+                    <label>Máx. por predio (ha):</label>
+                    <input type="number" id="adminLimitePredioGlobal" min="1" step="1" value="5" />
+                    <label><input type="checkbox" id="adminLimiteActivo" /> Activar límite global</label>
+                    <button class="btn btn-success" id="adminSaveConfig" style="padding:6px 16px; font-size:0.8rem;">💾 Guardar</button>
+                </div>
+                <div class="form-hint" style="font-size:0.75rem; color:#6b7b8d; margin-top:6px;">
+                    El límite global aplica a TODOS los usuarios del equipo, sin importar su perfil.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="adminEditUserModal">
+    <div class="modal-box" style="border-color:#d48c2b; max-width:520px;">
+        <div class="modal-header">
+            <h2 style="color:#d48c2b;">✏️ Editar Usuario</h2>
+            <p id="adminEditUserSub">Modifica los datos del usuario</p>
+        </div>
+        <input type="hidden" id="adminEditUserId" />
+        <div class="form-group"><label>👤 Nombre completo</label><input type="text" id="adminEditUserName" /></div>
+        <div class="form-group"><label>🔑 Usuario (login)</label><input type="text" id="adminEditUserUsuario" /></div>
+        <div class="form-group"><label>🎯 Tipo de usuario (Rol)</label>
+            <select id="adminEditUserRol">
+                <option value="visualizador">Visualizador</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group"><label>🎨 Perfil (permisos)</label>
+            <select id="adminEditUserPerfil">
+                <option value="basico">🌱 Básico — 50 ha</option>
+                <option value="profesional">🌾 Profesional — 1,000 ha</option>
+                <option value="empresarial">🏢 Empresarial — 10,000 ha</option>
+                <option value="ilimitado">⭐ Ilimitado</option>
+            </select>
+        </div>
+        <div class="form-group"><label>🏢 Área</label><input type="text" id="adminEditUserArea" /></div>
+        <div class="form-group"><label>🏭 Empresa</label>
+            <select id="adminEditUserEmpresa">
+                <option value="">-- Sin empresa --</option>
+            </select>
+        </div>
+        <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
+            <label style="font-size:0.8rem;"><input type="checkbox" id="adminEditVerTodas" /> 👁️ Ver todas las áreas</label>
+            <label style="font-size:0.8rem;"><input type="checkbox" id="adminEditAsignarCualquier" /> ✏️ Crear predios en cualquier área</label>
+            <label style="font-size:0.8rem;"><input type="checkbox" id="adminEditVerPronostico" /> 🌤️ Ver pronóstico</label>
+            <label style="font-size:0.8rem;"><input type="checkbox" id="adminEditEsAdminEmpresa" /> 🏢 Admin de esta empresa</label>
+        </div>
+        <div class="form-error" id="adminEditUserError">⚠️ Completa todos los campos</div>
+        <div class="form-actions">
+            <button class="primary" id="adminEditCancel" style="background:#8b9bb0;">Cancelar</button>
+            <button class="success" id="adminEditSave" style="background:#d48c2b;">💾 Guardar Cambios</button>
+        </div>
+    </div>
+</div>
+
+<div class="container" id="mainContent" style="display:none;">
+    <h2 style="margin: 0 0 8px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span>🌾 Registro de Predios</span>
+        <span class="badge badge-user" id="userBadge">👤 Usuario</span>
+        <span class="badge badge-business" id="businessBadge">🏢 Área</span>
+        <span class="badge badge-perfil" id="perfilBadge">🎯 Rol</span>
+        <span class="badge" id="contador">0</span>
+        <span class="badge badge-save" id="saveIndicator" style="font-size:0.65rem; padding:2px 10px;">💾 Guardado</span>
+        <span class="badge badge-recover" id="recoverBtn" style="font-size:0.65rem; padding:2px 10px; cursor:pointer;">🔄 Recuperar</span>
+        <span class="badge badge-conectado" id="badgeToken" style="font-size:0.65rem; padding:2px 10px; display:none;">🟢 Conectado</span>
+        <span class="badge badge-desconectado" id="badgeTokenOff" style="font-size:0.65rem; padding:2px 10px; display:none;">🔴 Sin conexión</span>
+        <button class="btn btn-token" id="btnPegarToken" style="font-size:0.65rem; padding:2px 12px; display:none;">🔑 Pegar token</button>
+        <button class="btn btn-logout" id="logoutBtn" style="font-size:0.65rem; padding:2px 12px; margin-left:4px;">🚪 Salir</button>
+        <span class="tile-status" id="tileStatus" style="display:none;">🗺️ Tiles: <span class="count" id="tileCount">0</span></span>
+    </h2>
+    <div class="superficie-bar-container" id="superficieBarContainer">
+        <span class="superficie-bar-label">📐 Superficie:</span>
+        <div class="superficie-bar-track"><div class="superficie-bar-fill" id="superficieBarFill" style="width: 0%;"></div></div>
+        <span class="superficie-bar-text" id="superficieBarText">0.00 ha</span>
+    </div>
+    <div id="map">
+        <div class="custom-layer-control" id="layerControl">
+            <button class="active" data-layer="osm">🌍 OSM</button>
+            <button data-layer="hybrid">🛰️ Hybrid</button>
+            <button data-layer="esri">🗺️ ESRI</button>
+        </div>
+    </div>
+    <div class="toolbar">
+        <button class="btn" id="drawPolygonBtn">➕ Dibujar polígono</button>
+        <button class="btn btn-danger" id="clearAllBtn">🗑️ Limpiar todos</button>
+        <button class="btn btn-purple" id="loadTilesBtn">📦 Cargar Tiles (ZIP)</button>
+        <input type="file" id="zipInput" class="file-input-hidden" accept=".zip" />
+        <button class="btn btn-warning" id="clearTilesBtn">🗑️ Limpiar Tiles</button>
+        <div class="export-group">
+            <button class="btn btn-success" id="exportKmlBtn">📁 KML</button>
+            <button class="btn btn-success" id="exportCsvBtn">📊 CSV</button>
+        </div>
+    </div>
+    <div style="font-weight: 500; margin: 12px 0 4px;">📋 Lista de predios</div>
+    <div class="predios-list" id="prediosListContainer">
+        <div class="header-list">
+            <span>ID</span><span>Nombre</span><span>Cultivo</span><span>Fecha Siembra</span><span>Área</span>
+            <span>Proyecto</span><span>Propietario</span><span>Superficie</span><span></span><span>Acciones</span>
+        </div>
+        <div id="prediosList" class="empty-message">No hay predios registrados. Dibuja un polígono.</div>
+    </div>
+</div>
+
+<div class="weather-modal" id="weatherModal">
+    <div class="weather-modal-content">
+        <button class="close-btn" id="weatherModalClose">&times;</button>
+        <h3 id="weatherModalTitle">🌤️ Clima del Predio</h3>
+        <div class="weather-modal-tabs">
+            <button class="active" data-tab="actual">🌡️ Actual</button>
+            <button data-tab="pronostico">📊 Pronóstico</button>
+            <button data-tab="historico">📈 Histórico</button>
+        </div>
+        <div id="weatherContent">
+            <div class="weather-tab-content active" id="tab-actual">
+                <div class="weather-current" id="weatherCurrent"><p><i class="fas fa-spinner fa-spin"></i> Cargando clima actual...</p></div>
+            </div>
+            <div class="weather-tab-content" id="tab-pronostico">
+                <div id="weatherForecast"><p style="text-align:center;font-size:0.7rem;color:#4c6a83;"><i class="fas fa-spinner fa-spin"></i> Cargando pronóstico...</p></div>
+                <div class="chart-container"><canvas id="weatherChart"></canvas></div>
+                <div class="chart-legend-custom">
+                    <span><span class="dot" style="background:#3498db;"></span> T. Máxima (°C)</span>
+                    <span><span class="dot" style="background:#e67e22;"></span> T. Mínima (°C)</span>
+                    <span><span class="dot" style="background:#2ecc71;"></span> Precipitación (mm)</span>
+                </div>
+                <div class="weather-legend">
+                    <span class="item"><span class="semaphore semaphore-green"></span> Óptimo</span>
+                    <span class="item"><span class="semaphore semaphore-yellow"></span> Precaución</span>
+                    <span class="item"><span class="semaphore semaphore-red"></span> Alerta</span>
+                    <span class="item"><span class="semaphore semaphore-gray"></span> N/A</span>
+                </div>
+            </div>
+            <div class="weather-tab-content" id="tab-historico">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                    <span style="font-size:0.75rem;color:#4c6a83;" id="histPeriodInfo">Selecciona un predio</span>
+                    <button class="btn btn-sm btn-weather" id="loadHistoricalBtn" style="padding:2px 14px;font-size:0.7rem;">
+                        <i class="fas fa-sync-alt"></i> Cargar Histórico
+                    </button>
+                </div>
+                <div class="historical-table-wrapper">
+                    <table class="historical-table" id="historicalTable">
+                        <thead><tr><th>Sem</th><th>Fecha</th><th>T.Max</th><th>T.Min</th><th>Precip</th><th>T.Max</th><th>T.Min</th><th>Precip</th><th>Taponamiento</th><th>Acame</th><th>Índice Agua</th></tr></thead>
+                        <tbody id="histTableBody"><tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;font-size:0.75rem;">Carga el histórico usando la fecha de siembra del predio</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="historical-status-legend">
+                    <span class="item"><span class="semaphore semaphore-green"></span> Óptimo</span>
+                    <span class="item"><span class="semaphore semaphore-yellow"></span> Precaución</span>
+                    <span class="item"><span class="semaphore semaphore-red"></span> Alerta</span>
+                    <span class="item"><span class="semaphore semaphore-gray"></span> N/A</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ============================================================
+    // CONFIG GITHUB
+    // ============================================================
+    const GITHUB_USER = "variclim";
+    const GITHUB_REPO = "ejemplo";
+    const GITHUB_BRANCH = "main";
+
+    // El token se guarda en sessionStorage:
+    //  - Admin General: puede verlo y cambiarlo desde el panel
+    //  - Admin Empresa / Editor: solo lo pegan una vez, luego solo ven el estado
+    //  - Visualizador: no necesita token (solo lectura)
+    let tokenAdmin = sessionStorage.getItem('ae_github_token') || "";
+
+    const PERFILES = {
+        basico: { nombre: 'Básico', icono: '🌱', limiteHa: 50, limitePredioHa: 5, color: '#6b9e3f' },
+        profesional: { nombre: 'Profesional', icono: '🌾', limiteHa: 1000, limitePredioHa: 25, color: '#d48c2b' },
+        empresarial: { nombre: 'Empresarial', icono: '🏢', limiteHa: 10000, limitePredioHa: 200, color: '#6b3fa0' },
+        ilimitado: { nombre: 'Ilimitado', icono: '⭐', limiteHa: Infinity, limitePredioHa: Infinity, color: '#0d8a7a' }
+    };
+    const DEFAULT_PERFIL = 'basico';
+    const PBKDF2_ITERATIONS = 310000;
+    const PBKDF2_KEYLEN = 32;
+
+    function bufferToHex(buffer) { return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join(''); }
+    async function generarHashPassword(p) {
+        const enc = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const km = await crypto.subtle.importKey("raw", enc.encode(p), { name: "PBKDF2" }, false, ["deriveBits"]);
+        const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" }, km, PBKDF2_KEYLEN * 8);
+        return bufferToHex(salt) + ":" + bufferToHex(bits);
+    }
+
+    let sesionActual = null;
+    let dbUsuarios = [];
+    let dbEmpresas = [];
+    let dbPredios = [];
+    let dbCatalogos = { areas: [], proyectos: [] };
+    let configGlobal = { activo: true, limiteHa: 50, limitePredioHa: 5 };
+
+    let map = null, drawnItems = null, drawControl = null;
+    let currentPolygon = null, polygonCoords = null;
+    let contadorId = 1, editingId = null;
+    let mapaInicializado = false, mapaInicializando = false;
+    let chartInstance = null;
+    let tileLayers = {}, tileCount = 0, tileBounds = null;
+    let osmLayer = null, hybridLayer = null, esriLayer = null;
+    let currentPredioId = null, historicalDays = null;
+
+    const API_KEY = 'W8DA7F4LDPDBT5QHQS95M8ZJZ';
+    const BASE_URL = 'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline';
+
+    const PRECIP_RANGES = { 1:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},2:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},3:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},4:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},5:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},6:{min:10.3,opt:16,minReal:8.1,prec:12.8,inundPrec:38.9,inundPot:58.3,sequia:5.69},7:{min:10.3,opt:16,minReal:8.1,prec:12.8,inundPrec:38.9,inundPot:58.3,sequia:5.69},8:{min:25.7,opt:40,minReal:20.3,prec:32,inundPrec:97.2,inundPot:145.7,sequia:14.22},9:{min:30.9,opt:48,minReal:24.4,prec:38.4,inundPrec:116.6,inundPot:174.9,sequia:17.07},10:{min:20.6,opt:32,minReal:16.3,prec:25.6,inundPrec:77.7,inundPot:116.6,sequia:11.38},11:{min:25.7,opt:40,minReal:20.3,prec:32,inundPrec:97.2,inundPot:145.7,sequia:14.22},12:{min:20.6,opt:32,minReal:16.3,prec:25.6,inundPrec:77.7,inundPot:116.6,sequia:11.38},13:{min:20.6,opt:32,minReal:16.3,prec:25.6,inundPrec:77.7,inundPot:116.6,sequia:11.38},14:{min:36,opt:56,minReal:28.4,prec:44.8,inundPrec:136,inundPot:204,sequia:19.91},15:{min:51.4,opt:80,minReal:40.6,prec:64,inundPrec:194.3,inundPot:291.5,sequia:28.44},16:{min:51.4,opt:80,minReal:40.6,prec:64,inundPrec:194.3,inundPot:291.5,sequia:28.44},17:{min:43.7,opt:68,minReal:34.5,prec:54.4,inundPrec:165.2,inundPot:247.7,sequia:24.18},18:{min:30.9,opt:48,minReal:24.4,prec:38.4,inundPrec:116.6,inundPot:174.9,sequia:17.07},19:{min:25.7,opt:40,minReal:20.3,prec:32,inundPrec:97.2,inundPot:145.7,sequia:14.22},20:{min:23.1,opt:36,minReal:18.3,prec:28.8,inundPrec:87.4,inundPot:131.2,sequia:12.8},21:{min:20.6,opt:32,minReal:16.3,prec:25.6,inundPrec:77.7,inundPot:116.6,sequia:11.38},22:{min:18,opt:28,minReal:14.2,prec:22.4,inundPrec:68,inundPot:102,sequia:9.95},23:{min:10.3,opt:16,minReal:8.1,prec:12.8,inundPrec:38.9,inundPot:58.3,sequia:5.69},24:{min:10.3,opt:16,minReal:8.1,prec:12.8,inundPrec:38.9,inundPot:58.3,sequia:5.69},25:{min:5.1,opt:8,minReal:4.1,prec:6.4,inundPrec:19.4,inundPot:29.1,sequia:2.84},26:{min:2.6,opt:4,minReal:2,prec:3.2,inundPrec:9.7,inundPot:14.6,sequia:1.42} };
+
+    function getTempMaxStatus(t) { if (t < 33) return { class: 'semaphore-green', text: 'Óptimo' }; if (t <= 35) return { class: 'semaphore-yellow', text: 'Precaución' }; return { class: 'semaphore-red', text: 'Alerta' }; }
+    function getTempMinStatus(t) { if (t > 8) return { class: 'semaphore-green', text: 'Óptimo' }; if (t >= 4) return { class: 'semaphore-yellow', text: 'Precaución' }; return { class: 'semaphore-red', text: 'Alerta' }; }
+    function getPrecipStatus(p, w) { const r = PRECIP_RANGES[w]; if (!r) return { class: 'semaphore-gray', text: 'N/A' }; if (p <= 0) { if (r.minReal > 0) return { class: 'semaphore-red', text: 'Alerta' }; return { class: 'semaphore-yellow', text: 'Precaución' }; } if (p < r.minReal) return { class: 'semaphore-red', text: 'Alerta' }; if (p < r.min) return { class: 'semaphore-yellow', text: 'Precaución' }; if (p <= r.opt) return { class: 'semaphore-green', text: 'Óptimo' }; if (p <= r.prec) return { class: 'semaphore-yellow', text: 'Precaución' }; return { class: 'semaphore-red', text: 'Alerta' }; }
+    function getAcame(t) { if (t >= 40) return { text: 'Alerta', class: 'semaphore-red' }; if (t <= 15) return { text: 'Normal', class: 'semaphore-green' }; return { text: 'Precaución', class: 'semaphore-yellow' }; }
+    function getIndiceAgua(p, w) { const r = PRECIP_RANGES[w]; if (!r) return { text: 'N/A', class: 'semaphore-gray' }; if (p <= 0 || p <= r.sequia) return { text: 'Sequía', class: 'semaphore-red' }; if (p >= r.inundPot) return { text: 'Inundación', class: 'semaphore-red' }; if (p >= r.min && p <= r.opt) return { text: 'Normal', class: 'semaphore-green' }; if (p >= r.minReal && p < r.min) return { text: 'Precaución', class: 'semaphore-yellow' }; if (p > r.opt && p < r.inundPrec) return { text: 'Precaución', class: 'semaphore-yellow' }; return { text: 'Precaución', class: 'semaphore-yellow' }; }
+    function getTaponamiento(arr, w) { if (w > 5) return { text: 'N/A', class: 'status-gray' }; const l7 = arr.slice(-7); const c15 = l7.filter(p => p >= 15).length; const c10 = l7.filter(p => p >= 10).length; const tot = arr.reduce((a,b)=>a+b,0); if (tot <= 5) return { text: 'NO', class: 'status-green' }; if (c15 >= 3) return { text: 'Alerta', class: 'status-red' }; if (c10 >= 2) return { text: 'Probable', class: 'status-yellow' }; return { text: 'NO', class: 'status-green' }; }
+
+    async function fetchCurrentWeather(lat, lng) {
+        const url = `${BASE_URL}/${lat},${lng}/today?unitGroup=metric&key=${API_KEY}&contentType=json`;
+        const r = await fetch(url); if (!r.ok) throw new Error(`API ${r.status}`);
+        const d = await r.json();
+        if (d.days && d.days.length) { const x = d.days[0]; return { temp: x.temp, feelslike: x.feelslike, humidity: x.humidity, precip: x.precip || 0, windspeed: x.windspeed, conditions: x.conditions || 'N/A', date: x.datetime, tempmin: x.tempmin || x.temp - 5, tempmax: x.tempmax || x.temp + 5 }; }
+        throw new Error('Sin datos');
+    }
+    async function fetchForecast(lat, lng, days) {
+        const url = `${BASE_URL}/${lat},${lng}/next${days}days?unitGroup=metric&key=${API_KEY}&contentType=json`;
+        const r = await fetch(url); if (!r.ok) throw new Error('API');
+        const d = await r.json();
+        if (d.days && d.days.length) return d.days;
+        throw new Error('Sin pronóstico');
+    }
+    async function fetchWeeklyHistorical(lat, lng, startDate, months) {
+        const start = new Date(startDate); const end = new Date(start); end.setMonth(end.getMonth() + months); end.setDate(end.getDate() - 1);
+        const s = start.toISOString().split('T')[0]; const e = end.toISOString().split('T')[0];
+        const today = new Date(); today.setHours(0,0,0,0);
+        const finalEnd = new Date(e) > today ? today.toISOString().split('T')[0] : e;
+        const url = `${BASE_URL}/${lat},${lng}/${s}/${finalEnd}?unitGroup=metric&key=${API_KEY}&contentType=json`;
+        const r = await fetch(url); if (!r.ok) throw new Error('API Histórico');
+        const d = await r.json();
+        if (d.days && d.days.length) return d.days;
+        throw new Error('Sin datos');
+    }
+    function groupByWeeks(days) { const w = []; let c = []; days.forEach((d,i)=>{ c.push(d); if (c.length === 7 || i === days.length - 1) { w.push(c); c = []; } }); return w; }
+    function formatDate(s) { return new Date(s).toLocaleDateString('es-ES'); }
+    function formatDateShort(s) { return new Date(s).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'}); }
+
+    function buildHistoricalTable(days, startDate, nombre, months) {
+        const tbody = document.getElementById('histTableBody');
+        const info = document.getElementById('histPeriodInfo');
+        if (!days || !days.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">Sin datos</td></tr>'; info.textContent = nombre || ''; return; }
+        const start = new Date(startDate); const end = new Date(start); end.setMonth(end.getMonth() + months);
+        const filtered = days.filter(d => d.datetime <= end.toISOString().split('T')[0]);
+        if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">Sin datos en rango</td></tr>'; info.textContent = nombre || ''; return; }
+        const weeks = groupByWeeks(filtered);
+        let html = ''; let gp = [];
+        weeks.forEach((w, idx) => {
+            const n = idx + 1;
+            const tMax = w.reduce((s,d)=>s+(d.tempmax||d.temp),0)/w.length;
+            const tMin = w.reduce((s,d)=>s+(d.tempmin||d.temp-3),0)/w.length;
+            const prec = w.reduce((s,d)=>s+(d.precip||0),0);
+            const tmS = getTempMaxStatus(tMax), tmnS = getTempMinStatus(tMin), prS = getPrecipStatus(prec, n);
+            gp = gp.concat(w.map(d=>d.precip||0));
+            const tap = getTaponamiento(gp, n), ac = getAcame(tMax), ia = getIndiceAgua(prec, n);
+            html += `<tr><td><strong>${n}</strong></td><td>${formatDate(w[0].datetime)} - ${formatDate(w[w.length-1].datetime)}</td><td>${tMax.toFixed(1)}</td><td>${tMin.toFixed(1)}</td><td>${prec.toFixed(1)}</td><td><span class="semaphore ${tmS.class}"></span></td><td><span class="semaphore ${tmnS.class}"></span></td><td><span class="semaphore ${prS.class}"></span></td><td><span class="status-badge ${tap.class}">${tap.text}</span></td><td><span class="semaphore ${ac.class}"></span></td><td><span class="status-badge ${ia.class}">${ia.text}</span></td></tr>`;
+        });
+        tbody.innerHTML = html;
+        info.textContent = `${nombre} · ${formatDate(filtered[0].datetime)} → ${formatDate(filtered[filtered.length-1].datetime)}`;
+    }
+
+    function fhArchivo() { const n=new Date(); return `${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}_${String(n.getHours()).padStart(2,'0')}${String(n.getMinutes()).padStart(2,'0')}${String(n.getSeconds()).padStart(2,'0')}`; }
+    function primerNombre(n) { if (!n || typeof n !== 'string') return 'ANON'; const t = n.trim(); if (!t) return 'ANON'; return t.split(/\s+/)[0].toUpperCase().substring(0,10); }
+    function calcArea(coords) { if (!coords || coords.length < 3) return 0; const R=6371000; const tr=d=>d*Math.PI/180; let a=0; const n=coords.length; for (let i=0;i<n;i++){ const j=(i+1)%n; const p1=coords[i],p2=coords[j]; a += (tr(p2[1])-tr(p1[1]))*(2+Math.sin(tr(p1[0]))+Math.sin(tr(p2[0]))); } return Math.abs(a*R*R/2)/10000; }
+    function centroid(coords) { let la=0,lo=0; coords.forEach(c=>{la+=c[0];lo+=c[1];}); return { lat: la/coords.length, lng: lo/coords.length }; }
+    function coordsDecimal(coords) { if (!coords || !coords.length) return ''; return coords.map(([la,lo])=>`${la.toFixed(6)}, ${lo.toFixed(6)}`).join('; '); }
+    function toast(msg, dur = 3000) {
+        const t = document.createElement('div');
+        t.style.cssText = `position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:white;padding:10px 24px;border-radius:12px;font-size:0.9rem;z-index:99999;border:1px solid #1e3a5f;max-width:90%;text-align:center;transition:opacity 0.3s;white-space:pre-line;`;
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, dur);
+    }
+
+    // ========== GITHUB SYNC ==========
+    async function leerArchivoGitHub(ruta) {
+        const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/data/${ruta}?t=${Date.now()}`;
+        try {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (res.ok) {
+                const d = await res.json();
+                return JSON.parse(decodeURIComponent(escape(atob(d.content))));
+            }
+        } catch (e) { console.log('Error leyendo', ruta, e); }
+        return null;
+    }
+    async function guardarEnGitHub(ruta, obj, msg) {
+        const tok = tokenAdmin || sessionStorage.getItem('ae_github_token');
+        if (!tok) { toast('⚠️ Sin token de GitHub: cambio solo en memoria.', 3000); return false; }
+        const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/data/${ruta}`;
+        let sha = "";
+        try {
+            const r = await fetch(url, { headers: { "Authorization": `token ${tok}` } });
+            if (r.ok) { const d = await r.json(); sha = d.sha; }
+        } catch (e) {}
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+        const res = await fetch(url, {
+            method: "PUT",
+            headers: { "Authorization": `token ${tok}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg, content: content, sha: sha, branch: GITHUB_BRANCH })
+        });
+        if (res.ok) { toast('☁️ Guardado en GitHub', 2000); return true; }
+        toast('❌ Error al guardar. Revisa tu token.', 3000);
+        return false;
+    }
+
+    async function cargarTodo() {
+        const u = await leerArchivoGitHub('usuarios.json');
+        dbUsuarios = (Array.isArray(u) && u.length) ? u.filter(x => x && x.usuario && (x.passHash || x.pass)) : [];
+        const e = await leerArchivoGitHub('empresas.json');
+        dbEmpresas = (Array.isArray(e) && e.length) ? e : [];
+        const c = await leerArchivoGitHub('areas_proyectos.json');
+        dbCatalogos = (c && Array.isArray(c.areas) && c.areas.length) ? c : { areas: ['Agricola','Geomatica','Meteorologia','Sistemas','Administracion','Coordinacion'], proyectos: [] };
+        const cfg = await leerArchivoGitHub('config.json');
+        if (cfg && typeof cfg.activo === 'boolean') configGlobal = cfg;
+        await cargarPredios();
+    }
+
+    async function cargarPredios() {
+        if (!sesionActual) { dbPredios = []; return; }
+        if (esAdminGeneral()) {
+            dbPredios = [];
+            const sin = await leerArchivoGitHub('predios_sin_empresa.json') || [];
+            sin.forEach(p => { p._archivo = 'predios_sin_empresa.json'; dbPredios.push(p); });
+            for (const emp of dbEmpresas) {
+                const arch = `predios_empresa_${emp.id}.json`;
+                const items = await leerArchivoGitHub(arch) || [];
+                items.forEach(p => { p._archivo = arch; p._empresaId = emp.id; dbPredios.push(p); });
+            }
+            if (dbPredios.length) { const ids = dbPredios.map(x => parseInt(String(x.id).split('-')[0]) || 0); contadorId = Math.max(...ids, 0) + 1; }
+        } else {
+            const arch = archivoPredios();
+            const p = await leerArchivoGitHub(arch);
+            dbPredios = (Array.isArray(p) && p.length) ? p : [];
+            if (dbPredios.length) { const ids = dbPredios.map(x => parseInt(String(x.id).split('-')[0]) || 0); contadorId = Math.max(...ids, 0) + 1; }
+        }
+    }
+
+    function archivoPredios() {
+        if (!sesionActual) return 'predios_sin_empresa.json';
+        return sesionActual.empresaId ? `predios_empresa_${sesionActual.empresaId}.json` : 'predios_sin_empresa.json';
+    }
+
+    // ========== PERMISOS ==========
+    function esAdminGeneral() { return sesionActual && sesionActual.rol === 'admin' && !sesionActual.empresaId; }
+    function esAdminEmpresa() { return sesionActual && sesionActual.rol === 'admin' && !!sesionActual.empresaId && sesionActual.esAdminEmpresa === true; }
+    function esAdmin() { return esAdminGeneral() || esAdminEmpresa(); }
+    function puedeVerPronostico() { return esAdminGeneral() || sesionActual?.verPronostico === true; }
+    function puedeVerTodasAreas() { return esAdminGeneral() || sesionActual?.verTodasAreas === true; }
+    function puedeCrearCualquierArea() { return esAdminGeneral() || sesionActual?.asignarCualquierArea === true; }
+    function getPerfil(u) { return PERFILES[u?.perfil] || PERFILES[DEFAULT_PERFIL]; }
+    function getPerfilActual() { return getPerfil(sesionActual); }
+    function necesitaToken() { return esAdminGeneral() || esAdminEmpresa() || sesionActual?.rol === 'editor'; }
+    function tieneToken() { return !!sessionStorage.getItem('ae_github_token'); }
+
+    function actualizarIndicadorToken() {
+        const badgeOn = document.getElementById('badgeToken');
+        const badgeOff = document.getElementById('badgeTokenOff');
+        const btnPegar = document.getElementById('btnPegarToken');
+        if (!badgeOn || !badgeOff || !btnPegar) return;
+        const esAdminG = esAdminGeneral();
+        if (!necesitaToken()) {
+            // Visualizador: no ve nada relacionado con token
+            badgeOn.style.display = 'none';
+            badgeOff.style.display = 'none';
+            btnPegar.style.display = 'none';
+            return;
+        }
+        if (tieneToken()) {
+            badgeOn.style.display = 'inline-flex';
+            badgeOff.style.display = 'none';
+            btnPegar.style.display = esAdminG ? 'inline-flex' : 'none';
+        } else {
+            badgeOn.style.display = 'none';
+            badgeOff.style.display = 'inline-flex';
+            btnPegar.style.display = 'inline-flex';
+        }
+    }
+
+    function actualizarEstadoTokenPanel() {
+        const box = document.getElementById('tokenStatusBox');
+        const inp = document.getElementById('adminTokenInput');
+        if (!box) return;
+        if (tieneToken()) {
+            box.className = 'token-status-box token-status-conectado';
+            box.innerHTML = '🟢 Token configurado (activo en esta sesión)';
+            if (inp) inp.value = sessionStorage.getItem('ae_github_token') || '';
+        } else {
+            box.className = 'token-status-box token-status-desconectado';
+            box.innerHTML = '🔴 Sin token configurado';
+            if (inp) inp.value = '';
+        }
+    }
+
+    function mostrarModalPegarToken() {
+        const actual = sessionStorage.getItem('ae_github_token') || '';
+        const nuevo = prompt('Pega tu token de GitHub (ghp_...).\nSe guarda solo en esta sesión y no será visible después.', actual);
+        if (nuevo === null) return;
+        const v = nuevo.trim();
+        if (!v) { toast('Token vacío', 2000); return; }
+        sessionStorage.setItem('ae_github_token', v);
+        tokenAdmin = v;
+        actualizarIndicadorToken();
+        toast('✅ Token guardado. Ya puedes editar.', 2500);
+    }
+
+    function guardarTokenAdmin() {
+        const v = document.getElementById('adminTokenInput').value.trim();
+        if (!v) { toast('Token vacío', 2000); return; }
+        sessionStorage.setItem('ae_github_token', v);
+        tokenAdmin = v;
+        actualizarIndicadorToken();
+        actualizarEstadoTokenPanel();
+        toast('✅ Token guardado en esta sesión', 2500);
+    }
+
+    function borrarTokenAdmin() {
+        sessionStorage.removeItem('ae_github_token');
+        tokenAdmin = '';
+        document.getElementById('adminTokenInput').value = '';
+        actualizarIndicadorToken();
+        actualizarEstadoTokenPanel();
+        toast('🗑️ Token eliminado', 2000);
+    }
+
+    function prediosVisibles() {
+        if (esAdminGeneral()) return dbPredios;
+        if (sesionActual.verTodasAreas === true) return dbPredios;
+        return dbPredios.filter(p => p.capturista === sesionActual.usuario);
+    }
+    function areasAsignables() { return puedeCrearCualquierArea() ? dbCatalogos.areas : [sesionActual.area]; }
+    function getSuperficieUsada() { return dbPredios.filter(p => p.capturista === sesionActual?.usuario).reduce((s,p)=>s+(p.superficie||0),0); }
+    function getSuperficieTotalEmpresa() { return dbPredios.reduce((s,p)=>s+(p.superficie||0),0); }
+    function getSuperficieDisponible() { const pf = getPerfilActual(); if (pf.limiteHa === Infinity) return Infinity; return Math.max(0, pf.limiteHa - getSuperficieUsada()); }
+
+    function validarSuperficie(area) {
+        const pf = getPerfilActual();
+        if (area > pf.limitePredioHa) return { ok: false, mensaje: `⚠️ Predio de ${area.toFixed(2)} ha excede el límite de tu perfil ${pf.nombre} (${pf.limitePredioHa} ha/predio).` };
+        if (area > getSuperficieDisponible()) return { ok: false, mensaje: `⚠️ Excede tu superficie disponible (${getSuperficieDisponible().toFixed(2)} ha).` };
+        if (configGlobal.activo) {
+            if (area > configGlobal.limitePredioHa) return { ok: false, mensaje: `⚠️ Excede el límite global por predio (${configGlobal.limitePredioHa} ha).` };
+            const total = getSuperficieTotalEmpresa();
+            const disp = configGlobal.limiteHa - total;
+            if (area > disp) return { ok: false, mensaje: `🚫 LÍMITE ALCANZADO\nTotal: ${configGlobal.limiteHa} ha\nOcupado: ${total.toFixed(2)} ha\nDisponible: ${Math.max(0, disp).toFixed(2)} ha` };
+        }
+        return { ok: true };
+    }
+
+    function actualizarIndicadorSuperficie() {
+        const pf = getPerfilActual();
+        const usada = getSuperficieUsada();
+        const bar = document.getElementById('superficieBarFill');
+        const txt = document.getElementById('superficieBarText');
+        const badge = document.getElementById('perfilBadge');
+        if (badge) { badge.textContent = `${pf.icono} ${pf.nombre}`; badge.style.background = pf.color; }
+        if (!bar || !txt) return;
+        if (pf.limiteHa === Infinity) { bar.style.width = '100%'; bar.className = 'superficie-bar-fill'; txt.textContent = `${usada.toFixed(2)} ha (sin límite)`; }
+        else {
+            const pct = Math.min(100, (usada/pf.limiteHa)*100);
+            bar.style.width = pct + '%';
+            txt.textContent = `${usada.toFixed(2)} / ${pf.limiteHa.toFixed(2)} ha`;
+            bar.className = 'superficie-bar-fill';
+            if (pct >= 100) bar.classList.add('danger');
+            else if (pct >= 80) bar.classList.add('warning');
+        }
+    }
+
+    // ========== LOGIN ==========
+    async function procesarLogin() {
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPassword').value.trim();
+        const tk = document.getElementById('loginToken').value.trim();
+        const err = document.getElementById('loginError');
+        if (!u || !p) { err.textContent = '⚠️ Completa usuario y contraseña'; err.classList.add('show'); return; }
+        if (dbUsuarios.length === 0) { err.textContent = '⚠️ No hay usuarios. Contacta al admin.'; err.classList.add('show'); return; }
+        const usuario = dbUsuarios.find(x => x.usuario === u);
+        if (!usuario) { err.textContent = '⚠️ Usuario o contraseña incorrectos'; err.classList.add('show'); return; }
+        const hash = usuario.passHash || usuario.pass || '';
+        let ok = false;
+        if (hash.includes(':')) {
+            const [saltHex, hashHex] = hash.split(':');
+            const enc = new TextEncoder();
+            const km = await crypto.subtle.importKey("raw", enc.encode(p), { name: "PBKDF2" }, false, ["deriveBits"]);
+            const salt = new Uint8Array(saltHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" }, km, PBKDF2_KEYLEN * 8);
+            ok = bufferToHex(bits) === hashHex;
+        } else {
+            ok = hash === p;
+        }
+        if (!ok) { err.textContent = '⚠️ Usuario o contraseña incorrectos'; err.classList.add('show'); return; }
+        err.classList.remove('show');
+        if (tk) { sessionStorage.setItem('ae_github_token', tk); tokenAdmin = tk; }
+        await cargarTodo();
+        sesionActual = usuario;
+        iniciarSesion();
+    }
+
+    function iniciarSesion() {
+        document.getElementById('loginModal').classList.remove('active');
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('userBadge').textContent = '👤 ' + sesionActual.usuario;
+        const emp = dbEmpresas.find(e => e.id === sesionActual.empresaId);
+        document.getElementById('businessBadge').textContent = '🏢 ' + (emp ? emp.nombre : (sesionActual.area || 'Sin empresa'));
+        const pf = getPerfilActual();
+        const pb = document.getElementById('perfilBadge');
+        pb.textContent = `${pf.icono} ${pf.nombre}`;
+        pb.style.background = pf.color;
+        actualizarIndicadorToken();
+        if (!mapaInicializado) setTimeout(() => initMap(), 300);
+        setTimeout(() => { dibujarPoligonos(); actualizarLista(); actualizarContador(); actualizarContadorTiles(); actualizarIndicadorSuperficie(); }, 500);
+        toast(`👋 Bienvenido ${sesionActual.usuario}\nRol: ${sesionActual.rol.toUpperCase()}${esAdminGeneral() ? ' (General)' : esAdminEmpresa() ? ' (Empresa)' : ''}\nPerfil: ${pf.nombre}`, 4000);
+    }
+
+    function cerrarSesion() {
+        if (!confirm('¿Cerrar sesión?')) return;
+        sessionStorage.removeItem('ae_github_token');
+        sesionActual = null;
+        location.reload();
+    }
+
+    // ========== MAPA ==========
+    function initMap() {
+        if (mapaInicializado || mapaInicializando) return;
+        const mc = document.getElementById('map');
+        if (!mc || mc.offsetParent === null) { setTimeout(initMap, 500); return; }
+        try {
+            mapaInicializando = true;
+            map = L.map('map', { center: [23.6345,-102.5528], zoom: 5 });
+            osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+            hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt1','mt2','mt3'] });
+            esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+            osmLayer.addTo(map);
+            drawnItems = L.featureGroup().addTo(map);
+            drawControl = new L.Control.Draw({
+                position: 'topleft',
+                draw: { polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#1e3a5f', weight: 3 } }, rectangle: false, circle: false, circlemarker: false, marker: false, polyline: false },
+                edit: { featureGroup: drawnItems, remove: false }
+            });
+            map.addControl(drawControl);
+            document.querySelectorAll('#layerControl button').forEach(b => b.addEventListener('click', function() {
+                document.querySelectorAll('#layerControl button').forEach(x => x.classList.remove('active'));
+                this.classList.add('active');
+                map.removeLayer(osmLayer); map.removeLayer(hybridLayer); map.removeLayer(esriLayer);
+                if (this.dataset.layer === 'osm') osmLayer.addTo(map);
+                else if (this.dataset.layer === 'hybrid') hybridLayer.addTo(map);
+                else esriLayer.addTo(map);
+            }));
+            map.on(L.Draw.Event.CREATED, e => {
+                if (e.layerType === 'polygon') {
+                    const l = e.layer; const ll = l.getLatLngs()[0];
+                    if (ll && ll.length >= 3) {
+                        polygonCoords = ll.map(x => [x.lat, x.lng]);
+                        currentPolygon = l;
+                        showPopupPredio(l, polygonCoords);
+                    }
+                }
+            });
+            map.on(L.Draw.DRAWSTART, () => { if (currentPolygon) { drawnItems.removeLayer(currentPolygon); currentPolygon = null; polygonCoords = null; } });
+            mapaInicializado = true; mapaInicializando = false;
+            setTimeout(() => { if (map) map.invalidateSize(); }, 200);
+        } catch (e) { mapaInicializando = false; }
+    }
+
+    function dibujarPoligonos() {
+        if (!drawnItems) return;
+        drawnItems.clearLayers();
+        prediosVisibles().forEach(p => {
+            if (p.coordenadas && p.coordenadas.length) {
+                try {
+                    const color = p.capturista === sesionActual.usuario ? '#2b6f3b' : '#1e6fb8';
+                    L.polygon(p.coordenadas, { color, weight: 2, fillOpacity: 0.2 }).addTo(drawnItems);
+                } catch (e) {}
+            }
+        });
+    }
+
+    function showPopupPredio(layer, coords) {
+        const area = calcArea(coords);
+        const areas = areasAsignables();
+        const puede = puedeCrearCualquierArea();
+        const optsA = areas.map(a => `<option value="${a}">${a}</option>`).join('');
+        const optsP = dbCatalogos.proyectos.map(p => `<option value="${p}">${p}</option>`).join('');
+        const html = `
+            <div style="font-weight:700;margin-bottom:10px;">📌 Nuevo Predio</div>
+            <div style="font-size:0.8rem;color:#6b7b8d;margin-bottom:6px;">Capturista: ${sesionActual.usuario}</div>
+            <div style="font-size:0.75rem;color:#1a7a8a;background:#e6f7fa;padding:4px 8px;border-radius:6px;margin-bottom:10px;">📐 ${area.toFixed(3)} ha</div>
+            <div class="popup-field"><label>Nombre:</label> <input type="text" id="popupNombre" /></div>
+            <div class="popup-field"><label>Área:</label> <select id="popupArea" ${puede?'':'disabled'}>${optsA}</select></div>
+            <div class="popup-field"><label>Proyecto:</label> <select id="popupProyecto">${optsP||'<option value="">-</option>'}</select></div>
+            <div class="popup-field"><label>Cultivo:</label> <select id="popupCultivo">${['Maíz','Frijol','Sorgo','Trigo','Arroz','Caña de azúcar','Algodón','Café','Cítricos','Aguacate'].map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+            <div class="popup-field"><label>Fecha Siembra:</label> <input type="date" id="popupFecha" /></div>
+            <div class="popup-field"><label>Propietario:</label> <input type="text" id="popupPropietario" /></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button class="btn btn-sm" id="popupCancelBtn" style="background:#8b9bb0;">Cancelar</button>
+                <button class="btn btn-sm btn-success" id="popupSaveBtn">💾 Guardar</button>
+            </div>`;
+        const popup = L.popup({ minWidth: 340, maxWidth: 400, autoClose: false, closeOnClick: false })
+            .setLatLng(layer.getBounds().getCenter()).setContent(html).openOn(map);
+        setTimeout(() => {
+            const s = document.getElementById('popupSaveBtn');
+            const c = document.getElementById('popupCancelBtn');
+            const n = document.getElementById('popupNombre');
+            const a = document.getElementById('popupArea');
+            const pr = document.getElementById('popupProyecto');
+            const cu = document.getElementById('popupCultivo');
+            const f = document.getElementById('popupFecha');
+            const p = document.getElementById('popupPropietario');
+            const today = new Date().toISOString().split('T')[0];
+            if (f) f.value = today;
+            async function guardar() {
+                const v = validarSuperficie(area);
+                if (!v.ok) { toast(v.mensaje, 5000); return; }
+                if (!tieneToken()) { toast('⚠️ Necesitas un token de GitHub para guardar. Pega uno en el botón "🔑 Pegar token".', 5000); return; }
+                const areaFinal = a.disabled ? sesionActual.area : a.value;
+                const fechaStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+                const id = String(contadorId++).padStart(3,'0') + '-' + fechaStr + '-' + primerNombre(p.value);
+                const nuevo = {
+                    id, nombre: n.value.trim() || 'Sin nombre', area: areaFinal,
+                    proyecto: pr.value || '', cultivo: cu.value || 'Maíz',
+                    fechaSiembra: f.value || today, propietario: p.value.trim() || 'Anónimo',
+                    superficie: area, coordenadas: coords,
+                    fechaCaptura: new Date().toISOString(),
+                    capturista: sesionActual.usuario,
+                    empresaId: sesionActual.empresaId || null
+                };
+                dbPredios.push(nuevo);
+                L.polygon(coords, { color: '#2b6f3b', weight: 2, fillOpacity: 0.2 }).addTo(drawnItems);
+                if (currentPolygon) { drawnItems.removeLayer(currentPolygon); currentPolygon = null; }
+                polygonCoords = null;
+                map.closePopup();
+                const arch = archivoPredios();
+                const aGuardar = esAdminGeneral() ? dbPredios.filter(x => x.capturista === sesionActual.usuario) : dbPredios;
+                await guardarEnGitHub(arch, aGuardar, 'Crear predio');
+                actualizarLista(); actualizarContador(); actualizarIndicadorSuperficie();
+                toast('✅ Predio guardado');
+            }
+            if (s) s.addEventListener('click', guardar);
+            if (c) c.addEventListener('click', () => { if (currentPolygon) { drawnItems.removeLayer(currentPolygon); currentPolygon = null; polygonCoords = null; } map.closePopup(); });
+        }, 100);
+        popup.on('remove', () => { if (currentPolygon) { drawnItems.removeLayer(currentPolygon); currentPolygon = null; polygonCoords = null; } });
+    }
+
+    function actualizarLista() {
+        const cont = document.getElementById('prediosList');
+        if (!cont) return;
+        const vis = prediosVisibles();
+        if (!vis.length) { cont.innerHTML = '<div class="empty-message">No hay predios.</div>'; actualizarIndicadorSuperficie(); return; }
+        const esEd = sesionActual.rol === 'editor' || esAdmin();
+        let html = '';
+        vis.forEach(p => {
+            const ed = editingId === p.id;
+            const puedeEd = esEd && (p.capturista === sesionActual.usuario || esAdminGeneral());
+            html += `<div class="predio-item ${ed?'editing':''}" data-id="${p.id}">
+                <span style="font-weight:600;font-size:0.7rem;">${p.id}</span>
+                <input type="text" value="${p.nombre||''}" data-field="nombre" ${ed&&puedeEd?'':'disabled'} />
+                <select data-field="cultivo" ${ed&&puedeEd?'':'disabled'}>${['Maíz','Frijol','Sorgo','Trigo','Arroz','Caña de azúcar','Algodón','Café','Cítricos','Aguacate'].map(c=>`<option value="${c}" ${c===p.cultivo?'selected':''}>${c}</option>`).join('')}</select>
+                <input type="date" value="${p.fechaSiembra||''}" data-field="fechaSiembra" ${ed&&puedeEd?'':'disabled'} />
+                <input type="text" value="${p.area||''}" data-field="area" ${ed&&puedeEd?'':'disabled'} />
+                <input type="text" value="${p.proyecto||''}" data-field="proyecto" ${ed&&puedeEd?'':'disabled'} />
+                <input type="text" value="${p.propietario||''}" data-field="propietario" ${ed&&puedeEd?'':'disabled'} />
+                <span style="font-weight:600;background:#e6f0fa;padding:1px 6px;border-radius:12px;font-size:0.7rem;">${p.superficie?(p.superficie).toFixed(3):'0.000'}</span>
+                <span></span>
+                <div class="acciones-container">
+                    ${ed ? `<button class="icon-btn save-edit" data-id="${p.id}">💾</button><button class="icon-btn cancel-edit" data-id="${p.id}">✖️</button>` : `
+                        ${puedeVerPronostico() ? `<button class="icon-btn weather" data-id="${p.id}" title="Clima">🌤️</button>` : ''}
+                        <button class="icon-btn zoom" data-id="${p.id}">👁️</button>
+                        <button class="icon-btn export-kml" data-id="${p.id}">📁</button>
+                        ${puedeEd ? `<button class="icon-btn edit" data-id="${p.id}">✏️</button>` : ''}
+                        ${esAdminGeneral() || p.capturista === sesionActual.usuario ? `<button class="icon-btn delete" data-id="${p.id}">🗑️</button>` : ''}
+                    `}
+                </div>
+            </div>`;
+        });
+        cont.innerHTML = html;
+        cont.querySelectorAll('.icon-btn.save-edit').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); guardarEdicion(b.dataset.id); }));
+        cont.querySelectorAll('.icon-btn.cancel-edit').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); editingId = null; actualizarLista(); }));
+        cont.querySelectorAll('.icon-btn.weather').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); cargarClima(b.dataset.id); }));
+        cont.querySelectorAll('.icon-btn.zoom').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); irPredio(b.dataset.id); }));
+        cont.querySelectorAll('.icon-btn.export-kml').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); exportarKML1(b.dataset.id); }));
+        cont.querySelectorAll('.icon-btn.edit').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); editingId = b.dataset.id; actualizarLista(); }));
+        cont.querySelectorAll('.icon-btn.delete').forEach(b => b.addEventListener('click', async e => {
+            e.stopPropagation();
+            if (!confirm('¿Eliminar predio?')) return;
+            if (!tieneToken()) { toast('⚠️ Necesitas un token de GitHub para eliminar.', 4000); return; }
+            const pred = dbPredios.find(x => x.id === b.dataset.id);
+            dbPredios = dbPredios.filter(x => x.id !== b.dataset.id);
+            dibujarPoligonos(); actualizarLista(); actualizarContador();
+            const arch = pred && pred._archivo ? pred._archivo : archivoPredios();
+            if (pred && pred._archivo) {
+                const del = await leerArchivoGitHub(arch) || [];
+                await guardarEnGitHub(arch, del.filter(x => x.id !== b.dataset.id), 'Eliminar');
+            } else {
+                const ag = esAdminGeneral() ? dbPredios.filter(x => x.capturista === sesionActual.usuario) : dbPredios;
+                await guardarEnGitHub(arch, ag, 'Eliminar');
+            }
+            actualizarIndicadorSuperficie();
+        }));
+        actualizarIndicadorSuperficie();
+    }
+
+    async function guardarEdicion(id) {
+        const item = document.querySelector(`.predio-item[data-id="${id}"]`);
+        if (!item) return;
+        const p = dbPredios.find(x => x.id === id);
+        if (!p) return;
+        if (!tieneToken()) { toast('⚠️ Necesitas un token de GitHub para guardar.', 4000); return; }
+        item.querySelectorAll('input, select').forEach(el => { if (el.dataset.field) p[el.dataset.field] = el.value; });
+        editingId = null;
+        const arch = p._archivo || archivoPredios();
+        const ag = esAdminGeneral() ? dbPredios.filter(x => x.capturista === sesionActual.usuario) : dbPredios;
+        await guardarEnGitHub(arch, ag, 'Editar');
+        actualizarLista(); toast('✅ Guardado', 2000);
+    }
+
+    function actualizarContador() { document.getElementById('contador').textContent = prediosVisibles().length; }
+    function irPredio(id) { const p = dbPredios.find(x => x.id === id); if (!p || !p.coordenadas || !p.coordenadas.length) return; const b = L.latLngBounds(p.coordenadas.map(c => L.latLng(c[0], c[1]))); if (b.isValid()) map.fitBounds(b, { padding: [60,60], maxZoom: 18 }); }
+
+    function exportarKML1(id) {
+        const p = dbPredios.find(x => x.id === id);
+        if (!p || !p.coordenadas || !p.coordenadas.length) { toast('❌ Sin coordenadas'); return; }
+        const cs = p.coordenadas.map(ll => ll[1]+','+ll[0]+',0').join(' ');
+        let kml = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+        kml += `<Placemark><name>${p.id} - ${p.propietario}</name><Polygon><outerBoundaryIs><LinearRing><coordinates>${cs}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n</Document>\n</kml>`;
+        descargar(kml, `predio_${p.id}.kml`, 'application/vnd.google-earth.kml+xml');
+    }
+
+    function descargar(c, f, m) { const b = new Blob(['\uFEFF'+c], { type: m+';charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = f; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+    async function cargarClima(id) {
+        const p = dbPredios.find(x => x.id === id);
+        if (!p || !p.coordenadas || !p.coordenadas.length) return;
+        if (!puedeVerPronostico()) { toast('⚠️ No tienes permiso para ver el pronóstico', 3000); return; }
+        currentPredioId = id;
+        const c = centroid(p.coordenadas);
+        const modal = document.getElementById('weatherModal');
+        document.getElementById('weatherModalTitle').textContent = `🌤️ ${p.nombre}`;
+        modal.classList.add('active');
+        document.querySelectorAll('.weather-tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.weather-modal-tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelector('.weather-modal-tabs button[data-tab="actual"]').classList.add('active');
+        document.getElementById('tab-actual').classList.add('active');
+        const cd = document.getElementById('weatherCurrent');
+        const fd = document.getElementById('weatherForecast');
+        cd.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando...</p>';
+        fd.innerHTML = '<p style="text-align:center;font-size:0.7rem;"><i class="fas fa-spinner fa-spin"></i> Cargando...</p>';
+        try {
+            const w = await fetchCurrentWeather(c.lat, c.lng);
+            cd.innerHTML = `<p><strong>🌡️ ${w.temp}°C</strong> (sensación ${w.feelslike}°C)</p><p>📊 Max ${w.tempmax}°C · Min ${w.tempmin}°C</p><p>💧 ${w.humidity}% · 🌧️ ${w.precip}mm · 💨 ${w.windspeed}km/h</p><p style="font-size:0.7rem;">📅 ${w.date} · ${w.conditions}</p>`;
+            const fc = await fetchForecast(c.lat, c.lng, 15);
+            const wks = groupByWeeks(fc);
+            let cd2 = [];
+            let h = '<div class="weather-grid">';
+            wks.forEach((w, i) => {
+                const n = i + 1;
+                const tM = w.reduce((s,d)=>s+(d.tempmax||d.temp),0)/w.length;
+                const tm = w.reduce((s,d)=>s+(d.tempmin||d.temp-3),0)/w.length;
+                const pr = w.reduce((s,d)=>s+(d.precip||0),0);
+                cd2.push({ s: `S${n}`, tM, tm, pr });
+                const a1 = getTempMaxStatus(tM), a2 = getTempMinStatus(tm), a3 = getPrecipStatus(pr, n), a4 = getAcame(tM), a5 = getIndiceAgua(pr, n);
+                h += `<div class="weather-item"><div class="fecha">${formatDateShort(w[0].datetime)}-${formatDateShort(w[w.length-1].datetime)}</div>
+                    <div class="fila"><span class="etq">Máx</span><span class="val"><span class="semaphore ${a1.class}"></span><span class="val-text">${a1.text}</span></span></div>
+                    <div class="fila"><span class="etq">Mín</span><span class="val"><span class="semaphore ${a2.class}"></span><span class="val-text">${a2.text}</span></span></div>
+                    <div class="fila"><span class="etq">Precip</span><span class="val"><span class="semaphore ${a3.class}"></span><span class="val-text">${a3.text}</span></span></div>
+                    <div class="fila"><span class="etq">Acame</span><span class="val"><span class="semaphore ${a4.class}"></span><span class="val-text">${a4.text}</span></span></div>
+                    <div class="fila"><span class="etq">I.Agua</span><span class="val"><span class="semaphore ${a5.class}"></span><span class="val-text">${a5.text}</span></span></div>
+                    <div class="fila-temp">${tM.toFixed(0)}°/${tm.toFixed(0)}°</div></div>`;
+            });
+            h += '</div><div class="weather-legend"><span class="item"><span class="semaphore semaphore-green"></span> Óptimo</span><span class="item"><span class="semaphore semaphore-yellow"></span> Precaución</span><span class="item"><span class="semaphore semaphore-red"></span> Alerta</span><span class="item"><span class="semaphore semaphore-gray"></span> N/A</span></div>';
+            fd.innerHTML = h;
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: cd2.map(d=>d.s), datasets: [
+                    { label: 'T. Máx (°C)', data: cd2.map(d=>+d.tM.toFixed(1)), backgroundColor: 'rgba(52,152,219,0.7)', borderColor: 'rgba(52,152,219,1)', borderWidth: 1, borderRadius: 4 },
+                    { label: 'T. Mín (°C)', data: cd2.map(d=>+d.tm.toFixed(1)), backgroundColor: 'rgba(230,126,34,0.7)', borderColor: 'rgba(230,126,34,1)', borderWidth: 1, borderRadius: 4 },
+                    { label: 'Precip (mm)', data: cd2.map(d=>+d.pr.toFixed(1)), backgroundColor: 'rgba(46,204,113,0.7)', borderColor: 'rgba(46,204,113,1)', borderWidth: 1, borderRadius: 4 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { font: { size: 10 } } } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 9 } } } } }
+            });
+        } catch (e) { cd.innerHTML = `<p style="color:#b33;">❌ ${e.message}</p>`; }
+    }
+
+    async function cargarHist() {
+        const p = dbPredios.find(x => x.id === currentPredioId);
+        if (!p || !p.fechaSiembra) { toast('⚠️ Sin fecha de siembra'); return; }
+        const c = centroid(p.coordenadas);
+        const tb = document.getElementById('histTableBody');
+        const btn = document.getElementById('loadHistoricalBtn');
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            const d = await fetchWeeklyHistorical(c.lat, c.lng, p.fechaSiembra, 4);
+            historicalDays = d;
+            buildHistoricalTable(d, p.fechaSiembra, p.nombre, 4);
+        } catch (e) { tb.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:20px;color:#b33;">❌ ${e.message}</td></tr>`; }
+        finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Cargar Histórico'; }
+    }
+
+    function tileToLatLng(x, y, z) { const n = 2**z; const lon = (x/n)*360-180; const yN = y/n; const lr = Math.atan(Math.sinh(Math.PI*(1-2*yN))); return { lat: lr*180/Math.PI, lng: lon }; }
+    function getTileBounds(x, y, z) { const nw = tileToLatLng(x,y,z); const se = tileToLatLng(x+1,y+1,z); return L.latLngBounds([Math.min(nw.lat,se.lat),Math.min(nw.lng,se.lng)],[Math.max(nw.lat,se.lat),Math.max(nw.lng,se.lng)]); }
+
+    function addTile(x, y, z, u) {
+        const k = `${z}/${x}/${y}`;
+        if (tileLayers[k]) return;
+        try {
+            const b = getTileBounds(x, y, z);
+            const o = L.imageOverlay(u, b, { opacity: 1, interactive: false });
+            o.addTo(map);
+            tileLayers[k] = o;
+            tileCount++;
+            if (!tileBounds) tileBounds = b;
+            else tileBounds.extend(b);
+            actualizarContadorTiles();
+        } catch (e) {}
+    }
+
+    async function loadZip(file) {
+        try {
+            const ab = await file.arrayBuffer(); const zip = await JSZip.loadAsync(ab);
+            let imgs = [];
+            for (const [path, e] of Object.entries(zip.files)) {
+                if (e.dir) continue;
+                const ext = path.split('.').pop().toLowerCase();
+                if (!['png','jpg','jpeg'].includes(ext)) continue;
+                const parts = path.split('/'); let z, x, y;
+                if (parts.length === 4 && parts[0] === 'tiles') { z = +parts[1]; x = +parts[2]; y = +parts[3].split('.')[0]; }
+                else if (parts.length === 3) { z = +parts[0]; x = +parts[1]; y = +parts[2].split('.')[0]; }
+                if (!isNaN(z) && !isNaN(x) && !isNaN(y)) imgs.push({ z, x, y, e });
+            }
+            if (!imgs.length) { toast('❌ Sin tiles'); return; }
+            toast(`📦 ${imgs.length} tiles...`);
+            for (let i = 0; i < imgs.length; i += 20) {
+                const batch = imgs.slice(i, i+20);
+                await Promise.all(batch.map(async it => { try { const b = await it.e.async('base64'); addTile(it.x, it.y, it.z, `data:image/png;base64,${b}`); } catch (e) {} }));
+            }
+            if (tileBounds) map.fitBounds(tileBounds, { padding: [20,20] });
+            toast(`✅ ${tileCount} tiles`);
+        } catch (e) { toast('❌ ' + e.message, 4000); }
+    }
+    function clearTiles() { for (const k in tileLayers) { map.removeLayer(tileLayers[k]); delete tileLayers[k]; } tileLayers = {}; tileCount = 0; tileBounds = null; actualizarContadorTiles(); }
+    function actualizarContadorTiles() { document.getElementById('tileCount').textContent = tileCount; document.getElementById('tileStatus').style.display = tileCount > 0 ? 'inline-flex' : 'none'; }
+
+    function exportarCSV() {
+        const v = prediosVisibles();
+        if (!v.length) { toast('Sin predios'); return; }
+        const h = ['ID','Nombre','Area','Proyecto','Cultivo','FechaSiembra','Propietario','Superficie_ha','Capturista','Fecha_Captura','Coordenadas'];
+        const rows = [h.join(',')];
+        v.forEach(p => rows.push([`"${p.id}"`,`"${p.nombre||''}"`,`"${p.area||''}"`,`"${p.proyecto||''}"`,`"${p.cultivo||''}"`,`"${p.fechaSiembra||''}"`,`"${p.propietario||''}"`,(p.superficie||0).toFixed(4),`"${p.capturista||''}"`,`"${p.fechaCaptura||''}"`,`"${coordsDecimal(p.coordenadas)}"`].join(',')));
+        descargar(rows.join('\n'), `predios_${sesionActual.usuario}_${fhArchivo()}.csv`, 'text/csv;charset=utf-8');
+    }
+    function exportarKMLTodos() {
+        const v = prediosVisibles();
+        if (!v.length) { toast('Sin predios'); return; }
+        let kml = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+        v.forEach(p => {
+            if (!p.coordenadas || !p.coordenadas.length) return;
+            const cs = p.coordenadas.map(ll => ll[1]+','+ll[0]+',0').join(' ');
+            kml += `<Placemark><name>${p.id} - ${p.propietario}</name><Polygon><outerBoundaryIs><LinearRing><coordinates>${cs}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n`;
+        });
+        kml += '</Document>\n</kml>';
+        descargar(kml, `predios_${sesionActual.usuario}_${fhArchivo()}.kml`, 'application/vnd.google-earth.kml+xml');
+    }
+
+    function abrirLoginAdmin() {
+        document.getElementById('adminUserInput').value = '';
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('adminLoginError').classList.remove('show');
+        document.getElementById('adminLoginModal').classList.add('active');
+    }
+    async function adminLoginHandler() {
+        const u = document.getElementById('adminUserInput').value.trim();
+        const p = document.getElementById('adminPassInput').value;
+        const err = document.getElementById('adminLoginError');
+        const usuario = dbUsuarios.find(x => x.usuario === u);
+        if (!usuario || usuario.rol !== 'admin') { err.textContent = '⚠️ No es admin'; err.classList.add('show'); return; }
+        const hash = usuario.passHash || usuario.pass || '';
+        let ok = false;
+        if (hash.includes(':')) {
+            const [saltHex, hashHex] = hash.split(':');
+            const enc = new TextEncoder();
+            const km = await crypto.subtle.importKey("raw", enc.encode(p), { name: "PBKDF2" }, false, ["deriveBits"]);
+            const salt = new Uint8Array(saltHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" }, km, PBKDF2_KEYLEN * 8);
+            ok = bufferToHex(bits) === hashHex;
+        } else { ok = hash === p; }
+        if (!ok) { err.textContent = '⚠️ Contraseña incorrecta'; err.classList.add('show'); return; }
+        err.classList.remove('show');
+        await cargarTodo();
+        sesionActual = usuario;
+        document.getElementById('adminLoginModal').classList.remove('active');
+        abrirPanelAdmin();
+    }
+    function abrirPanelAdmin() {
+        const esGeneral = esAdminGeneral();
+        const tabs = document.querySelectorAll('.admin-tabs button');
+        tabs.forEach(t => {
+            const tab = t.dataset.adminTab;
+            if (tab === 'empresas' && !esGeneral) t.style.display = 'none';
+            if (tab === 'token' && !esGeneral) t.style.display = 'none';
+            if (tab === 'global' && !esGeneral) t.style.display = 'none';
+            if (esGeneral) t.style.display = '';
+        });
+        renderizarAdminPanel();
+        renderizarEmpresas();
+        renderizarConfigGlobal();
+        actualizarEstadoTokenPanel();
+        document.getElementById('adminPanelModal').classList.add('active');
+    }
+
+    function renderizarAdminPanel() {
+        const esGeneral = esAdminGeneral();
+        const totalU = dbUsuarios.length;
+        const totalP = dbPredios.length;
+        const totalS = dbPredios.reduce((s,p)=>s+(p.superficie||0),0);
+        document.getElementById('adminStats').innerHTML = `
+            <div class="admin-stat-card"><div class="label">👥 Usuarios</div><div class="value">${totalU}</div></div>
+            <div class="admin-stat-card"><div class="label">🏢 Empresas</div><div class="value">${dbEmpresas.length}</div></div>
+            <div class="admin-stat-card"><div class="label">📋 Predios</div><div class="value">${totalP}</div></div>
+            <div class="admin-stat-card" style="border-left-color:#2b6f3b;"><div class="label">📐 Superficie</div><div class="value">${totalS.toFixed(2)} ha</div></div>`;
+
+        const formCrear = document.getElementById('adminFormCrearUsuario');
+        if (formCrear) formCrear.style.display = esGeneral ? '' : 'none';
+
+        const usuariosVisibles = esGeneral ? dbUsuarios : dbUsuarios.filter(u => u.empresaId === sesionActual.empresaId);
+
+        const tb = document.getElementById('adminUsersTableBody');
+        if (!usuariosVisibles.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#7f8c8d;">Sin usuarios</td></tr>'; return; }
+        let html = '';
+        usuariosVisibles.forEach(u => {
+            const nP = dbPredios.filter(p => p.capturista === u.usuario).length;
+            const rC = u.rol === 'admin' ? 'rol-admin' : u.rol === 'editor' ? 'rol-editor' : 'rol-visualizador';
+            const pf = getPerfil(u);
+            const emp = dbEmpresas.find(e => e.id === u.empresaId);
+            const esGeneralU = u.rol === 'admin' && !u.empresaId;
+            html += `<tr>
+                <td><strong>${u.usuario}</strong></td>
+                <td>${u.nombre||'-'}</td>
+                <td><span class="badge-rol ${rC}">${u.rol}${esGeneralU?' (Gen)':(u.esAdminEmpresa?' (Emp)':'')}</span></td>
+                <td><span class="perfil-badge-cell" style="background:${pf.color};">${pf.icono} ${pf.nombre}</span></td>
+                <td>${emp?emp.nombre:'-'}</td>
+                <td>${u.area||'-'}</td>
+                <td>
+                    <span class="permiso-tag ${u.verTodasAreas?'permiso-on':'permiso-off'}">👁️ ${u.verTodasAreas?'Sí':'No'}</span>
+                    <span class="permiso-tag ${u.asignarCualquierArea?'permiso-on':'permiso-off'}">✏️ ${u.asignarCualquierArea?'Sí':'No'}</span>
+                    <span class="permiso-tag ${u.verPronostico?'permiso-on':'permiso-off'}">🌤️ ${u.verPronostico?'Sí':'No'}</span>
+                    ${u.esAdminEmpresa?`<span class="permiso-tag permiso-on">🏢 Admin Empresa</span>`:''}
+                </td>
+                <td>${nP}</td>
+                <td>
+                    <div class="admin-actions-cell">
+                        <button class="admin-btn-edit" data-action="edit" data-id="${u.id}">✏️</button>
+                        ${esGeneral ? `<button class="admin-btn-delete" data-action="delete" data-id="${u.id}">🗑️</button>` : ''}
+                    </div>
+                </td>
+            </tr>`;
+        });
+        tb.innerHTML = html;
+        tb.querySelectorAll('button[data-action]').forEach(b => b.addEventListener('click', function() {
+            const a = this.dataset.action;
+            const id = this.dataset.id;
+            if (a === 'edit') abrirEditarUsuario(id);
+            else if (a === 'delete') eliminarUsuario(id);
+        }));
+        const selEmp = document.getElementById('adminNewEmpresa');
+        if (selEmp) selEmp.innerHTML = '<option value="">-- Sin empresa --</option>' + dbEmpresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    }
+
+    function renderizarEmpresas() {
+        if (!esAdminGeneral()) return;
+        const tb = document.getElementById('adminEmpresasTableBody');
+        if (!dbEmpresas.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#7f8c8d;">Sin empresas</td></tr>'; return; }
+        let html = '';
+        dbEmpresas.forEach(e => {
+            const pf = PERFILES[e.perfil] || PERFILES[DEFAULT_PERFIL];
+            const nU = dbUsuarios.filter(u => u.empresaId === e.id).length;
+            const nP = dbPredios.filter(p => p.empresaId === e.id).length;
+            html += `<tr><td><strong>${e.nombre}</strong></td><td>${e.rfc||'-'}</td><td>${e.email||'-'}</td>
+                <td><span class="perfil-badge-cell" style="background:${pf.color};">${pf.icono} ${pf.nombre}</span></td>
+                <td>${nU}</td><td>${nP}</td>
+                <td><div class="admin-actions-cell"><button class="admin-btn-delete" data-action="delete-empresa" data-id="${e.id}">🗑️</button></div></td></tr>`;
+        });
+        tb.innerHTML = html;
+        tb.querySelectorAll('button[data-action="delete-empresa"]').forEach(b => b.addEventListener('click', async function() {
+            const emp = dbEmpresas.find(e => String(e.id) === String(this.dataset.id));
+            if (!emp) return;
+            const del = confirm(`¿Eliminar "${emp.nombre}"?\nAceptar = Sí (con predios)\nCancelar = No`);
+            if (del) { await guardarEnGitHub(`predios_empresa_${emp.id}.json`, [], 'Eliminar predios'); }
+            dbUsuarios.forEach(u => { if (u.empresaId === emp.id) u.empresaId = null; });
+            await guardarEnGitHub('usuarios.json', dbUsuarios, 'Desasociar');
+            dbEmpresas = dbEmpresas.filter(e => String(e.id) !== String(emp.id));
+            await guardarEnGitHub('empresas.json', dbEmpresas, 'Eliminar empresa');
+            renderizarEmpresas(); renderizarAdminPanel();
+        }));
+    }
+
+    function renderizarConfigGlobal() {
+        if (!esAdminGeneral()) {
+            const box = document.querySelector('#adminTab-global .admin-config-box');
+            if (box) box.style.display = 'none';
+            return;
+        }
+        document.getElementById('adminLimiteGlobal').value = configGlobal.limiteHa;
+        document.getElementById('adminLimitePredioGlobal').value = configGlobal.limitePredioHa;
+        document.getElementById('adminLimiteActivo').checked = configGlobal.activo;
+    }
+
+    async function crearUsuario() {
+        if (!esAdminGeneral() && !esAdminEmpresa()) { toast('⚠️ Sin permiso'); return; }
+        const n = document.getElementById('adminNewNombre').value.trim();
+        const u = document.getElementById('adminNewUsuario').value.trim();
+        const p = document.getElementById('adminNewPass').value.trim();
+        const rol = document.getElementById('adminNewRol').value;
+        const pf = document.getElementById('adminNewPerfil').value;
+        const area = document.getElementById('adminNewArea').value.trim() || 'Agricola';
+        let empId = document.getElementById('adminNewEmpresa').value || null;
+        const vTA = document.getElementById('adminNewVerTodas').checked;
+        const aCA = document.getElementById('adminNewAsignarCualquier').checked;
+        const vP = document.getElementById('adminNewVerPronostico').checked;
+        const eAE = document.getElementById('adminNewEsAdminEmpresa').checked;
+
+        if (esAdminEmpresa()) {
+            empId = sesionActual.empresaId;
+            if (rol === 'admin') { toast('⚠️ Solo el admin general puede crear admins'); return; }
+        }
+        if (!n || !u || !p) { toast('⚠️ Completa campos'); return; }
+        if (p.length < 8) { toast('⚠️ Contraseña mínimo 8'); return; }
+        if (dbUsuarios.some(x => x.usuario === u)) { toast('⚠️ Usuario ya existe'); return; }
+
+        dbUsuarios.push({
+            id: Date.now(), nombre: n, usuario: u,
+            passHash: await generarHashPassword(p),
+            rol, perfil: pf, area, empresaId: empId,
+            esAdminEmpresa: eAE, verTodasAreas: vTA, asignarCualquierArea: aCA, verPronostico: vP,
+            tokenHash: ''
+        });
+        await guardarEnGitHub('usuarios.json', dbUsuarios, `Crear ${u}`);
+        document.getElementById('adminNewNombre').value = '';
+        document.getElementById('adminNewUsuario').value = '';
+        document.getElementById('adminNewPass').value = '';
+        document.getElementById('adminNewVerTodas').checked = false;
+        document.getElementById('adminNewAsignarCualquier').checked = false;
+        document.getElementById('adminNewVerPronostico').checked = true;
+        document.getElementById('adminNewEsAdminEmpresa').checked = false;
+        renderizarAdminPanel();
+        toast('✅ Usuario creado');
+    }
+
+    async function crearEmpresa() {
+        if (!esAdminGeneral()) { toast('⚠️ Solo admin general'); return; }
+        const n = document.getElementById('adminNewEmpresaNombre').value.trim();
+        const rfc = document.getElementById('adminNewEmpresaRFC').value.trim();
+        const em = document.getElementById('adminNewEmpresaEmail').value.trim();
+        const pf = document.getElementById('adminNewEmpresaPerfil').value;
+        if (!n) { toast('⚠️ Nombre requerido'); return; }
+        if (dbEmpresas.some(e => e.nombre.toLowerCase() === n.toLowerCase())) { toast('⚠️ Ya existe'); return; }
+        const nueva = { id: Date.now(), nombre: n, rfc, email: em, perfil: pf };
+        dbEmpresas.push(nueva);
+        await guardarEnGitHub('empresas.json', dbEmpresas, `Empresa ${n}`);
+        await guardarEnGitHub(`predios_empresa_${nueva.id}.json`, [], 'Inicializar predios empresa');
+        document.getElementById('adminNewEmpresaNombre').value = '';
+        document.getElementById('adminNewEmpresaRFC').value = '';
+        document.getElementById('adminNewEmpresaEmail').value = '';
+        renderizarEmpresas(); renderizarAdminPanel();
+        toast('✅ Empresa creada');
+    }
+
+    function abrirEditarUsuario(id) {
+        const u = dbUsuarios.find(x => String(x.id) === String(id));
+        if (!u) return;
+        const esGeneral = esAdminGeneral();
+        document.getElementById('adminEditUserId').value = u.id;
+        document.getElementById('adminEditUserName').value = u.nombre || '';
+        document.getElementById('adminEditUserUsuario').value = u.usuario;
+        document.getElementById('adminEditUserRol').value = u.rol;
+        document.getElementById('adminEditUserRol').disabled = !esGeneral;
+        document.getElementById('adminEditUserPerfil').value = u.perfil || DEFAULT_PERFIL;
+        document.getElementById('adminEditUserPerfil').disabled = !esGeneral;
+        document.getElementById('adminEditUserArea').value = u.area || '';
+        const selEmp = document.getElementById('adminEditUserEmpresa');
+        selEmp.innerHTML = '<option value="">-- Sin empresa --</option>' + dbEmpresas.map(e => `<option value="${e.id}" ${e.id === u.empresaId?'selected':''}>${e.nombre}</option>`).join('');
+        selEmp.disabled = !esGeneral;
+        document.getElementById('adminEditVerTodas').checked = !!u.verTodasAreas;
+        document.getElementById('adminEditVerTodas').disabled = !esGeneral;
+        document.getElementById('adminEditAsignarCualquier').checked = !!u.asignarCualquierArea;
+        document.getElementById('adminEditAsignarCualquier').disabled = !esGeneral;
+        document.getElementById('adminEditVerPronostico').checked = !!u.verPronostico;
+        document.getElementById('adminEditVerPronostico').disabled = !esGeneral;
+        document.getElementById('adminEditEsAdminEmpresa').checked = !!u.esAdminEmpresa;
+        document.getElementById('adminEditEsAdminEmpresa').disabled = !esGeneral;
+        document.getElementById('adminEditUserSub').textContent = `Editando: ${u.usuario}`;
+        document.getElementById('adminEditUserError').classList.remove('show');
+        document.getElementById('adminEditUserModal').classList.add('active');
+    }
+
+    async function guardarEdicionUsuario() {
+        const id = document.getElementById('adminEditUserId').value;
+        const u = dbUsuarios.find(x => String(x.id) === String(id));
+        if (!u) return;
+        const esGeneral = esAdminGeneral();
+        const nuevoU = document.getElementById('adminEditUserUsuario').value.trim();
+        if (!nuevoU) { document.getElementById('adminEditUserError').textContent = '⚠️ Usuario requerido'; document.getElementById('adminEditUserError').classList.add('show'); return; }
+        if (dbUsuarios.some(x => String(x.id) !== String(id) && x.usuario === nuevoU)) { document.getElementById('adminEditUserError').textContent = '⚠️ Ya existe'; document.getElementById('adminEditUserError').classList.add('show'); return; }
+
+        const uAnterior = u.usuario;
+        const empAnterior = u.empresaId;
+
+        u.nombre = document.getElementById('adminEditUserName').value.trim();
+        u.usuario = nuevoU;
+        u.area = document.getElementById('adminEditUserArea').value.trim();
+
+        if (esGeneral) {
+            u.rol = document.getElementById('adminEditUserRol').value;
+            u.perfil = document.getElementById('adminEditUserPerfil').value;
+            u.empresaId = document.getElementById('adminEditUserEmpresa').value || null;
+            u.verTodasAreas = document.getElementById('adminEditVerTodas').checked;
+            u.asignarCualquierArea = document.getElementById('adminEditAsignarCualquier').checked;
+            u.verPronostico = document.getElementById('adminEditVerPronostico').checked;
+            u.esAdminEmpresa = document.getElementById('adminEditEsAdminEmpresa').checked;
+        }
+
+        if (uAnterior !== nuevoU) {
+            for (const emp of dbEmpresas) {
+                const arch = `predios_empresa_${emp.id}.json`;
+                const preds = await leerArchivoGitHub(arch) || [];
+                let c = false;
+                preds.forEach(p => { if (p.capturista === uAnterior) { p.capturista = nuevoU; c = true; } });
+                if (c) await guardarEnGitHub(arch, preds, 'Renombrar capturista');
+            }
+            const archSin = 'predios_sin_empresa.json';
+            const predsSin = await leerArchivoGitHub(archSin) || [];
+            let cSin = false;
+            predsSin.forEach(p => { if (p.capturista === uAnterior) { p.capturista = nuevoU; cSin = true; } });
+            if (cSin) await guardarEnGitHub(archSin, predsSin, 'Renombrar capturista');
+        }
+
+        if (esGeneral && empAnterior !== u.empresaId) {
+            const archV = empAnterior ? `predios_empresa_${empAnterior}.json` : 'predios_sin_empresa.json';
+            const archN = u.empresaId ? `predios_empresa_${u.empresaId}.json` : 'predios_sin_empresa.json';
+            const viejos = await leerArchivoGitHub(archV) || [];
+            const mover = viejos.filter(p => p.capturista === u.usuario);
+            const quedan = viejos.filter(p => p.capturista !== u.usuario);
+            if (mover.length) {
+                const nuevos = await leerArchivoGitHub(archN) || [];
+                mover.forEach(p => { p.empresaId = u.empresaId; nuevos.push(p); });
+                await guardarEnGitHub(archV, quedan, 'Mover predios');
+                await guardarEnGitHub(archN, nuevos, 'Recibir predios');
+            }
+        }
+
+        await guardarEnGitHub('usuarios.json', dbUsuarios, `Editar ${u.usuario}`);
+        document.getElementById('adminEditUserModal').classList.remove('active');
+        renderizarAdminPanel();
+        toast('✅ Usuario actualizado');
+    }
+
+    async function eliminarUsuario(id) {
+        if (!esAdminGeneral()) { toast('⚠️ Solo admin general'); return; }
+        const u = dbUsuarios.find(x => String(x.id) === String(id));
+        if (!u) return;
+        if (dbUsuarios.length <= 1) { toast('⚠️ No puedes eliminar el último'); return; }
+        if (sesionActual && String(sesionActual.id) === String(id)) { toast('⚠️ No puedes eliminarte'); return; }
+        const borrarP = confirm(`¿Eliminar "${u.usuario}"?\nAceptar = Sí, con sus predios\nCancelar = No`);
+        if (borrarP) {
+            const arch = u.empresaId ? `predios_empresa_${u.empresaId}.json` : 'predios_sin_empresa.json';
+            const preds = await leerArchivoGitHub(arch) || [];
+            await guardarEnGitHub(arch, preds.filter(p => p.capturista !== u.usuario), 'Eliminar predios usuario');
+        }
+        dbUsuarios = dbUsuarios.filter(x => String(x.id) !== String(id));
+        await guardarEnGitHub('usuarios.json', dbUsuarios, `Eliminar ${u.usuario}`);
+        renderizarAdminPanel();
+        toast('🗑️ Usuario eliminado');
+    }
+
+    async function guardarConfigGlobal() {
+        if (!esAdminGeneral()) return;
+        const lh = parseFloat(document.getElementById('adminLimiteGlobal').value);
+        const lph = parseFloat(document.getElementById('adminLimitePredioGlobal').value);
+        const act = document.getElementById('adminLimiteActivo').checked;
+        if (isNaN(lh) || lh <= 0 || isNaN(lph) || lph <= 0) { toast('⚠️ Límites inválidos'); return; }
+        configGlobal = { activo: act, limiteHa: lh, limitePredioHa: lph };
+        await guardarEnGitHub('config.json', configGlobal, 'Config');
+        toast('✅ Configuración guardada');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await cargarTodo();
+        document.getElementById('loginModal').classList.add('active');
+        document.getElementById('mainContent').style.display = 'none';
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', procesarLogin);
+    document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') procesarLogin(); });
+    document.getElementById('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+    document.getElementById('openAdminBtn').addEventListener('click', abrirLoginAdmin);
+    document.getElementById('adminLoginSubmit').addEventListener('click', adminLoginHandler);
+    document.getElementById('adminLoginCancel').addEventListener('click', () => document.getElementById('adminLoginModal').classList.remove('active'));
+    document.getElementById('adminPassInput').addEventListener('keydown', e => { if (e.key === 'Enter') adminLoginHandler(); });
+    document.getElementById('adminPanelClose').addEventListener('click', () => document.getElementById('adminPanelModal').classList.remove('active'));
+    document.getElementById('adminCreateUser').addEventListener('click', crearUsuario);
+    document.getElementById('adminCreateEmpresa').addEventListener('click', crearEmpresa);
+    document.getElementById('adminSaveConfig').addEventListener('click', guardarConfigGlobal);
+    document.getElementById('adminSaveToken').addEventListener('click', guardarTokenAdmin);
+    document.getElementById('adminDeleteToken').addEventListener('click', borrarTokenAdmin);
+    document.getElementById('adminEditCancel').addEventListener('click', () => document.getElementById('adminEditUserModal').classList.remove('active'));
+    document.getElementById('adminEditSave').addEventListener('click', guardarEdicionUsuario);
+    document.getElementById('btnPegarToken').addEventListener('click', mostrarModalPegarToken);
+
+    document.getElementById('drawPolygonBtn').addEventListener('click', () => { if (mapaInicializado && drawControl) new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable(); else toast('⏳ Espera'); });
+    document.getElementById('clearAllBtn').addEventListener('click', async () => {
+        if (!confirm('¿Eliminar TODOS tus predios?')) return;
+        if (!tieneToken()) { toast('⚠️ Necesitas token para editar.', 4000); return; }
+        dbPredios = dbPredios.filter(p => p.capturista !== sesionActual.usuario);
+        editingId = null;
+        if (drawnItems) drawnItems.clearLayers();
+        const arch = archivoPredios();
+        const ag = esAdminGeneral() ? dbPredios.filter(x => x.capturista === sesionActual.usuario) : dbPredios;
+        await guardarEnGitHub(arch, ag, 'Limpiar');
+        actualizarLista(); actualizarContador(); actualizarIndicadorSuperficie();
+    });
+    document.getElementById('exportKmlBtn').addEventListener('click', exportarKMLTodos);
+    document.getElementById('exportCsvBtn').addEventListener('click', exportarCSV);
+    document.getElementById('recoverBtn').addEventListener('click', async () => {
+        await cargarTodo();
+        dibujarPoligonos(); actualizarLista(); actualizarContador(); actualizarIndicadorSuperficie();
+        toast('🔄 Recargado');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+    document.getElementById('loadTilesBtn').addEventListener('click', () => document.getElementById('zipInput').click());
+    document.getElementById('zipInput').addEventListener('change', function() { if (this.files && this.files[0]) loadZip(this.files[0]); this.value = ''; });
+    document.getElementById('clearTilesBtn').addEventListener('click', clearTiles);
+
+    document.querySelectorAll('.weather-modal-tabs button').forEach(btn => btn.addEventListener('click', function() {
+        document.querySelectorAll('.weather-modal-tabs button').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.weather-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+    }));
+    document.getElementById('loadHistoricalBtn').addEventListener('click', cargarHist);
+    document.getElementById('weatherModalClose').addEventListener('click', () => {
+        document.getElementById('weatherModal').classList.remove('active');
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    });
+
+    document.querySelectorAll('.admin-tabs button').forEach(btn => btn.addEventListener('click', function() {
+        document.querySelectorAll('.admin-tabs button').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('adminTab-' + this.dataset.adminTab).classList.add('active');
+    }));
+
+    window.addEventListener('resize', () => { if (map) setTimeout(() => map.invalidateSize(), 300); });
+})();
+</script>
+</body>
+</html>
