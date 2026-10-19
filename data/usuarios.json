@@ -3,7 +3,7 @@
     "id": 1,
     "nombre": "Administrador General",
     "usuario": "admin",
-    "passHash": "PEGA_AQUI_TU_HASH",
+    "passHash": "4b74e0fc23cf059c81090734f27ba44c:04657f24d5b452628dd1c35a979485d16ac6520c32512105f5b23331324bec34",
     "rol": "admin",
     "perfil": "ilimitado",
     "area": "Coordinacion",
