@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "nombre": "Administrador General",
+    "usuario": "admin",
+    "passHash": "PEGA_AQUI_TU_HASH",
+    "rol": "admin",
+    "perfil": "ilimitado",
+    "area": "Coordinacion",
+    "empresaId": null,
+    "esAdminEmpresa": false,
+    "verTodasAreas": true,
+    "asignarCualquierArea": true,
+    "verPronostico": true,
+    "tokenHash": ""
+  }
+]
